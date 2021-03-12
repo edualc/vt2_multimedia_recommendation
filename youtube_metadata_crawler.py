@@ -107,3 +107,18 @@ for index, row in df.iterrows():
 
 # df = pd.DataFrame(pickle).transpose()
 # df.to_csv('youtube_extracted.csv')
+
+
+
+# # This snippet is used to create a list of the
+# # available movies in the ML20M dataset
+# # ==========================================
+
+# # df = pd.read_csv('youtube_extracted.csv', index_col=0)
+# df2 = df[df['contentDetails.dimension'] == '2d']
+
+# with open('ml20myt_available.txt', 'w') as f:
+#     for index, row in df2.iterrows():
+#         print(index)
+#         f.write(str(index))
+#         f.write('\n')
