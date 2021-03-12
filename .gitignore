@@ -8,6 +8,10 @@ __pycache__/
 
 datasets/*
 
+*.csv
+*.pkl
+*.xlsx
+
 # Distribution / packaging
 .Python
 build/
