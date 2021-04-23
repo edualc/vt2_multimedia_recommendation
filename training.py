@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 
+from util.paths import ensure_dir
+
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras.applications import MobileNetV3Small
@@ -15,7 +17,9 @@ from wandb.keras import WandbCallback
 # import tensorflow as tf
 # from tensorflow import keras
 
-BASE_FOLDER_PATH = '/mnt/all1/ml20m_yt/videos_resized'
+# BASE_FOLDER_PATH = '/mnt/all1/ml20m_yt/videos_resized'
+BASE_FOLDER_PATH = '/cluster/data/lehmacl1/datasets/ml20m_yt/videos_resized'
+
 
 # Checks the BASE_FOLDER_PATH for folders with the movielens_id
 # and only keeps rows of the dataframe that have at least one file in the folder
@@ -58,23 +62,25 @@ def normalize_img(image, label):
 df = data_dataframe()
 
 BATCH_SIZE = 8
+MODEL_PATH = 'trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S')
+MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 
 builder = tfds.folder_dataset.ImageFolder(root_dir='/mnt/all1/ml20m_yt/training_224/')
 
-# lehl@2021-04-23:
-# TODO! ENABLE SHUFFLE
-# 
-train_ds = builder.as_dataset(split='train', shuffle_files=False, as_supervised=True)
-test_ds = builder.as_dataset(split='test', shuffle_files=False, as_supervised=True)
-# train_ds = builder.as_dataset(split='train', shuffle_files=True, as_supervised=True)
-# test_ds = builder.as_dataset(split='test', shuffle_files=True, as_supervised=True)
+# # lehl@2021-04-23:
+# # TODO! ENABLE SHUFFLE
+# # 
+# train_ds = builder.as_dataset(split='train', shuffle_files=False, as_supervised=True)
+# test_ds = builder.as_dataset(split='test', shuffle_files=False, as_supervised=True)
+train_ds = builder.as_dataset(split='train', shuffle_files=True, as_supervised=True)
+test_ds = builder.as_dataset(split='test', shuffle_files=True, as_supervised=True)
 
 train_ds = train_ds.map(normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 train_ds = train_ds.cache()
-# lehl@2021-04-23:
-# TODO! ENABLE SHUFFLE
-# 
-# train_ds = train_ds.shuffle(builder.info.splits['train'].num_examples)
+# # lehl@2021-04-23:
+# # TODO! ENABLE SHUFFLE
+# #
+train_ds = train_ds.shuffle(builder.info.splits['train'].num_examples)
 train_ds = train_ds.batch(BATCH_SIZE)
 train_ds = train_ds.prefetch(tf.data.experimental.AUTOTUNE)
 
@@ -95,17 +101,26 @@ model.compile(
 
 model.summary()
 
+ensure_dir(MODEL_CHECKPOINT_PATH)
+
 model.fit(
     train_ds,
-    epochs=5,
+    epochs=256,
     validation_data=test_ds,
-    callbacks=[WandbCallback(save_model=False)],
+    callbacks=[
+        WandbCallback(save_model=False),
+        tf.keras.callbacks.EarlyStopping(monitor='loss', patience=5, restore_best_weights=True),
+        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_best_only=True, save_weights_only=True, verbose=1),
+        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, period=10, save_weights_only=True, verbose=1)
+    ],
     use_multiprocessing=True,
-    # lehl@2021-04-23:
-    # TODO: Change to full epochs on Cluster
-    # 
-    steps_per_epoch=256,
-    validation_steps=256
+    verbose=1
+
+    # # lehl@2021-04-23:
+    # # TODO: Change to full epochs on Cluster
+    # # 
+    # steps_per_epoch=256,
+    # validation_steps=256
 )
 
 model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
