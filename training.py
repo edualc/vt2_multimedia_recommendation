@@ -18,31 +18,31 @@ from wandb.keras import WandbCallback
 # from tensorflow import keras
 
 # BASE_FOLDER_PATH = '/mnt/all1/ml20m_yt/videos_resized'
-BASE_FOLDER_PATH = '/cluster/data/lehmacl1/datasets/ml20m_yt/videos_resized'
+# BASE_FOLDER_PATH = '/cluster/data/lehmacl1/datasets/ml20m_yt/videos_resized'
 
 
-# Checks the BASE_FOLDER_PATH for folders with the movielens_id
-# and only keeps rows of the dataframe that have at least one file in the folder
-# 
-# Assumption:
-# Trailers are saved under BASE_FOLDER_PATH/<movielens_id>/<youtube_id>.mp4
-# 
-def filter_dataframe():
-    df = pd.read_csv('datasets/ml20m_youtube/youtube_availability.csv')
-    num_entries = df.shape[0]
+# # Checks the BASE_FOLDER_PATH for folders with the movielens_id
+# # and only keeps rows of the dataframe that have at least one file in the folder
+# # 
+# # Assumption:
+# # Trailers are saved under BASE_FOLDER_PATH/<movielens_id>/<youtube_id>.mp4
+# # 
+# def filter_dataframe():
+#     df = pd.read_csv('datasets/ml20m_youtube/youtube_availability.csv')
+#     num_entries = df.shape[0]
 
-    resized_trailers = list()
+#     resized_trailers = list()
 
-    for subdir, dirs, files in os.walk(BASE_FOLDER_PATH):
-        if len(files) > 0:
-            resized_trailers.append(int(subdir.split('/')[-1]))
+#     for subdir, dirs, files in os.walk(BASE_FOLDER_PATH):
+#         if len(files) > 0:
+#             resized_trailers.append(int(subdir.split('/')[-1]))
 
-    return df[df.movielens_id.isin(resized_trailers)]
+#     return df[df.movielens_id.isin(resized_trailers)]
 
-def filter_ratings(df):
-    ratings_df = pd.read_csv('datasets/ml20m/ratings.csv')
+# def filter_ratings(df):
+#     ratings_df = pd.read_csv('datasets/ml20m/ratings.csv')
 
-    return ratings_df[ratings_df.movieId.isin(df.movielens_id)]
+#     return ratings_df[ratings_df.movieId.isin(df.movielens_id)]
 
 # df = filter_dataframe()
 # ratings = filter_ratings(df)
@@ -65,7 +65,8 @@ BATCH_SIZE = 8
 MODEL_PATH = 'trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S')
 MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 
-builder = tfds.folder_dataset.ImageFolder(root_dir='/mnt/all1/ml20m_yt/training_224/')
+builder = tfds.folder_dataset.ImageFolder(root_dir='/cluster/data/lehmacl1/datasets/ml20m_yt/training_224/')
+# builder = tfds.folder_dataset.ImageFolder(root_dir='/mnt/all1/ml20m_yt/training_224/')
 
 # # lehl@2021-04-23:
 # # TODO! ENABLE SHUFFLE
