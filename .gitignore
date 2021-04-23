@@ -1,3 +1,9 @@
+# Custom Project Folders
+datasets/*
+clipped/*
+wandb/*
+trained_models/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -6,7 +12,6 @@ __pycache__/
 # C extensions
 *.so
 
-datasets/*
 
 *.csv
 *.pkl
