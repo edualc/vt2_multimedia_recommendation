@@ -1,5 +1,5 @@
 import os
-import cv2
+#import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,6 +8,10 @@ from datetime import datetime
 from util.paths import ensure_dir
 
 import tensorflow as tf
+config = tf.compat.v1.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.compat.v1.Session(config = config)
+
 import tensorflow_datasets as tfds
 from tensorflow.keras.applications import MobileNetV3Small
 
@@ -53,7 +57,7 @@ from wandb.keras import WandbCallback
 
 
 def data_dataframe():
-    return pd.read_csv('datasets/ml20m/avg_ratings.csv')
+    return pd.read_csv('/cluster/home/lehmacl1/development/vt2_multimedia_recommendation/datasets/ml20m/avg_ratings.csv')
 
 def normalize_img(image, label):
   """Normalizes images: `uint8` -> `float32`."""
@@ -61,11 +65,12 @@ def normalize_img(image, label):
 
 df = data_dataframe()
 
-BATCH_SIZE = 8
+#BATCH_SIZE = 8
+BATCH_SIZE = 64
 MODEL_PATH = 'trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S')
 MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 
-builder = tfds.folder_dataset.ImageFolder(root_dir='/cluster/data/lehmacl1/datasets/ml20m_yt/training_224/')
+builder = tfds.folder_dataset.ImageFolder(root_dir='/cluster/home/lehmacl1/datasets/ml20m_yt/training_224/')
 # builder = tfds.folder_dataset.ImageFolder(root_dir='/mnt/all1/ml20m_yt/training_224/')
 
 # # lehl@2021-04-23:
@@ -81,13 +86,15 @@ train_ds = train_ds.cache()
 # # lehl@2021-04-23:
 # # TODO! ENABLE SHUFFLE
 # #
-train_ds = train_ds.shuffle(builder.info.splits['train'].num_examples)
+#train_ds = train_ds.shuffle(builder.info.splits['train'].num_examples)
+train_ds = train_ds.shuffle(8 * BATCH_SIZE)
 train_ds = train_ds.batch(BATCH_SIZE)
 train_ds = train_ds.prefetch(tf.data.experimental.AUTOTUNE)
 
 test_ds = test_ds.map(normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-test_ds = test_ds.batch(BATCH_SIZE)
 test_ds = test_ds.cache()
+test_ds = test_ds.batch(BATCH_SIZE)
+#test_ds = test_ds.cache()
 test_ds = test_ds.prefetch(tf.data.experimental.AUTOTUNE)
 
 wandb.init(project='zhaw_vt2', entity='lehl')
@@ -100,7 +107,7 @@ model.compile(
     metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
 )
 
-model.summary()
+#model.summary()
 
 ensure_dir(MODEL_CHECKPOINT_PATH)
 
@@ -116,6 +123,7 @@ model.fit(
     ],
     use_multiprocessing=True,
     verbose=1
+    #validation_steps=128
 
     # # lehl@2021-04-23:
     # # TODO: Change to full epochs on Cluster
