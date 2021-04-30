@@ -21,6 +21,15 @@ from wandb.keras import WandbCallback
 # import tensorflow as tf
 # from tensorflow import keras
 
+
+# lehl@2021-04-30:
+# 
+# This script handles the training of the trailer embeddings from keyframe images
+# and saves the used model for further use.
+# 
+
+
+
 # BASE_FOLDER_PATH = '/mnt/all1/ml20m_yt/videos_resized'
 # BASE_FOLDER_PATH = '/cluster/data/lehmacl1/datasets/ml20m_yt/videos_resized'
 
