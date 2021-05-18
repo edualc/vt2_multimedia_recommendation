@@ -4,6 +4,16 @@ import numpy as np
 from util.paths import ensure_dir
 import shutil
 
+# lehl@2021-04-30:
+# 
+# This script handles the train_test_splitting of the keyframes
+# in the given BASE_FOLDER_PATH, putting the images from the BASE_FOLDER_PATH/train directory
+# into the BASE_FOLDER_PATH/test directory, according to the TEST_RATIO specified.
+# 
+# Currently NOT made to be rerun multiple times (although a check is in place to control
+# if some files were already copied over, in that case this entry will be skipped)
+# 
+
 BASE_FOLDER_PATH = '/mnt/all1/ml20m_yt/training_224'
 
 TEST_RATIO = 0.2
