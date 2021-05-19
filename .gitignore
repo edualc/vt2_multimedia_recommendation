@@ -3,6 +3,7 @@ datasets/*
 clipped/*
 wandb/*
 trained_models/*
+*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

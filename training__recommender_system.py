@@ -17,8 +17,11 @@ from wandb.keras import WandbCallback
 
 dataset = preprocess_ml20m()
 
+# Check for available GPUs
+#
 gpus = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(gpus[0], True)
+if len(gpus) > 0:
+    tf.config.experimental.set_memory_growth(gpus[0], True)
 
 NUM_NEURONS = 256
 NUM_EPOCHS = 2000
@@ -34,21 +37,47 @@ print('y_valid', dataset['y_implicit_valid'].shape)
 print('X_test', dataset['X_implicit_test'].shape)
 print('y_test', dataset['y_implicit_test'].shape)
 
-import code; code.interact(local=dict(globals(), **locals()))
-# exit()
+print('')
+print('!' * 80)
+print('=' * 80)
+print('!' * 80)
+print('*')
+print('*\tMake sure, that the preprocessing of the recommender data is valid.')
+print('*\t=> TODO: Ensure, the same number of columns is used across all data subsets!')
+print('*')
+print('!' * 80)
+print('=' * 80)
+print('!' * 80)
+print('')
 
-wandb.init(project='zhaw_vt2', entity='lehl', config={
-    'num_neurons': NUM_NEURONS,
-    'num_epochs': NUM_EPOCHS,
-    'num_features': num_features,
-    'num_classes': num_classes,
-    'batch_size': BATCH_SIZE,
-    'X_train': dataset['X_implicit_train'].shape,
-    'y_train': dataset['y_implicit_train'].shape,
-    'X_valid': dataset['X_implicit_valid'].shape,
-    'y_valid': dataset['y_implicit_valid'].shape,
-    'X_test': dataset['X_implicit_test'].shape,
-    'y_test': dataset['y_implicit_test'].shape
+import code; code.interact(local=dict(globals(), **locals()))
+exit()
+
+wandb.init(project='zhaw_vt2', group='recommender', entity='lehl', config={
+    'network_configuration': {
+        'training': {
+            'num_epochs': NUM_EPOCHS,
+            'batch_size': BATCH_SIZE,
+            'used_gpu': len(gpus) > 0
+        },
+        'num_neurons': NUM_NEURONS,
+        'num_features': num_features,
+        'num_classes': num_classes,
+    },
+    'dataset': {
+        'training': {
+            'X': { 'shape': dataset['X_implicit_train'].shape, 'num_interactions': np.sum(dataset['X_implicit_train']) },
+            'Y': { 'shape': dataset['y_implicit_train'].shape, 'num_interactions': np.sum(dataset['y_implicit_train']) }
+        },
+        'validation': {
+            'X': { 'shape': dataset['X_implicit_valid'].shape, 'num_interactions': np.sum(dataset['X_implicit_valid']) },
+            'Y': { 'shape': dataset['y_implicit_valid'].shape, 'num_interactions': np.sum(dataset['y_implicit_valid']) }
+        },
+        'testing': {
+            'X': { 'shape': dataset['X_implicit_test'].shape, 'num_interactions': np.sum(dataset['X_implicit_test']) },
+            'Y': { 'shape': dataset['y_implicit_test'].shape, 'num_interactions': np.sum(dataset['y_implicit_test']) }
+        }
+    }
 })
 
 training_gen = SparseDataGenerator(
@@ -114,17 +143,8 @@ model.fit(
     epochs=NUM_EPOCHS,
     validation_data=validation_gen,
     callbacks=[WandbCallback(save_model=False)],
-    use_multiprocessing=False,
+    use_multiprocessing=True,
     verbose=1)
-
-# model.fit_generator(
-#     generator=training_gen,
-#     validation_data=validation_gen,
-#     use_multiprocessing=True,
-#     workers=4,
-#     verbose=1
-# )
-# model.fit(X_train, Y_train, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE, shuffle=True, verbose=1)
 
 # predictions_proba = model.predict_proba(X_test)
 
@@ -151,67 +171,3 @@ wandb.log({
 # import code; code.interact(local=dict(globals(), **locals()))
 
 # y_pred = model.predict(dataset['X_implicit_test'].todense())
-
-
-
-def preprocess_ratings(ratings_df):
-    # Takes a dataframe and creates a list with all the product_colname values, sorted by a colname
-    # For example: List of all ProductIDs for each user, sorted by the Timestamp
-    # 
-    def _sort_lists(df):
-        return list(OrderedDict.fromkeys(df.sort_values(by=['timestamp'])['movielens_id']))
-    
-    # Splits the products (items) in features and labels, under the assumption that a user the has
-    # a product would be a good candidate to recommend that item to, if he did not have it already.
-    # 
-    def _split_items(items):
-        to_take = int(REMOVAL_PROBABILITY * len(items)) + 1
-
-        random.shuffle(items)
-
-        if to_take > 0:
-            # lehl@2020-06-15: TODO, What happens, when there are fewer items than what
-            # we would like to have a targets? Does that make sense?
-            # 
-            feature_items, target_items = items[:-to_take], items[-to_take:]
-
-            return feature_items, target_items
-        else:
-            return items, []
-
-    print('Generating number of products per user matrix')
-    sorted_lists = ratings_df.groupby('user_id').apply(_sort_lists).reset_index(name='list')
-    
-    print('Generating train test split of user products')
-    product_split = list(map(lambda cl: (cl[0], _split_items(cl[1])), sorted_lists[['user_id', 'list']].values))
-
-    print('Generating dataframes of features and labels')
-    features = pd.DataFrame([(user, item) for user, (feature_product, _) in product_split for item in feature_product],
-                            columns=['user_id', 'movielens_id'])
-    labels = pd.DataFrame([(user, item) for user, (_, target_product) in product_split for item in target_product],
-                           columns=['user_id', 'movielens_id'])
-
-    print('Genearting feature matrix')
-    # Pivot the data -> create the "customer x item" matrix
-    # 
-    df_features = pd.crosstab(features['user_id'], features['movielens_id'])
-    df_features = \
-        df_features \
-        .reindex(columns=ratings_df['movielens_id'].unique(), fill_value=0) \
-        .reindex(index=sorted_lists['user_id'].unique(), fill_value=0)
-    
-    # lehl@2020-07-20:
-    # Ensure that the index column has the correct name for matching
-    # 
-    df_features.index.names = ['user_id']
-    df_features = df_features.reset_index()
-
-    print('Genearting label matrix')
-    df_labels = pd.crosstab(labels['user_id'], labels['movielens_id'])
-    df_labels = df_labels \
-        .reindex(columns=customer_products['movielens_id'].unique(), fill_value=0) \
-        .reindex(index=sorted_lists['user_id'].unique(), fill_value=0)
-
-    return df_features, df_labels
-
-# df_features, df_labels = preprocess_ratings(df)

@@ -8,6 +8,7 @@ from scipy.sparse import csr_matrix
 from util.paths import ensure_dir
 from util.histograms import rating_histogram
 
+from decouple import config
 
 GENERATE_HISTOGRAMS = False
 
@@ -27,17 +28,16 @@ LABEL_RATIO = 0.2
 # lehl@2021-05-03: Taken from JCA
 # @ https://people.engr.tamu.edu/caverlee/pubs/zhu19www.pdf
 #  
-MIN_INTERACTION_COUNT = 20
+MIN_INTERACTION_COUNT = 5
 
-AVAILABLE_IDS_FILE_PATH = 'datasets/ml20m_youtube/available_keyframe_movielens_ids.csv'
-RATINGS_FILE_PATH = 'datasets/ml20m/ratings.csv'
+AVAILABLE_IDS_FILE_PATH = config('ML20MYT_PATH') + 'available_keyframe_movielens_ids.csv'
+RATINGS_FILE_PATH = config('ML20M_PATH') + '/ratings.csv'
 
 DATASET_ITERATION = '3'
 DATASET_IDENTIFIER = '_'.join([DATASET_ITERATION, 'min'+str(MIN_INTERACTION_COUNT)])
-DATASET_PATH = 'datasets/ml20m/'
-PREPROCESSED_DATASET_FILE_PATH = DATASET_PATH + 'ml20m__' + DATASET_IDENTIFIER + '__preprocessed.h5'
-PREPROCESSED_FILE_PATH = DATASET_PATH + 'ml20m_ratings__min' + str(MIN_INTERACTION_COUNT) + '_interactions.csv'
-PREPROCESSED_IMPLICIT_FILE_PATH = DATASET_PATH + 'ml20m_ratings__implicit__min' + str(MIN_INTERACTION_COUNT) + '_interactions.csv'
+PREPROCESSED_DATASET_FILE_PATH = config('ML20M_PATH') + 'ml20m__' + DATASET_IDENTIFIER + '__preprocessed.h5'
+PREPROCESSED_FILE_PATH = config('ML20M_PATH') + 'ml20m_ratings__min' + str(MIN_INTERACTION_COUNT) + '_interactions.csv'
+PREPROCESSED_IMPLICIT_FILE_PATH = config('ML20M_PATH') + 'ml20m_ratings__implicit__min' + str(MIN_INTERACTION_COUNT) + '_interactions.csv'
 
 def enforce_min_interactions(df, min_interaction_count=MIN_INTERACTION_COUNT):
     df_size = -1
@@ -80,17 +80,18 @@ def _split_dataframe(df, test_ratio=TEST_RATIO, train_valid_ratio=TRAIN_VALIDATI
     print(f"Unique Items:\t\t{unique_items.shape[0]}")
     print('')
 
-    ensure_dir('datasets/ml20m/' + iteration + '/')
+    ensure_dir(config('ML20M_PATH') + iteration + '/')
 
-    if not os.path.exists('datasets/ml20m/' + iteration + '/train.csv'):
-        train_df.to_csv('datasets/ml20m/' + iteration + '/train.csv', header=True, index=False)
+    if not os.path.exists(config('ML20M_PATH') + iteration + '/train.csv'):
+        train_df.to_csv(config('ML20M_PATH') + iteration + '/train.csv', header=True, index=False)
 
-    if not os.path.exists('datasets/ml20m/' + iteration + '/valid.csv'):
-        valid_df.to_csv('datasets/ml20m/' + iteration + '/valid.csv', header=True, index=False)
+    if not os.path.exists(config('ML20M_PATH') + iteration + '/valid.csv'):
+        valid_df.to_csv(config('ML20M_PATH') + iteration + '/valid.csv', header=True, index=False)
 
-    if not os.path.exists('datasets/ml20m/' + iteration + '/test.csv'):
-        test_df.to_csv('datasets/ml20m/' + iteration + '/test.csv', header=True, index=False)
+    if not os.path.exists(config('ML20M_PATH') + iteration + '/test.csv'):
+        test_df.to_csv(config('ML20M_PATH') + iteration + '/test.csv', header=True, index=False)
 
+    # import code; code.interact(local=dict(globals(), **locals()))
 
     return train_df, valid_df, test_df, unique_users, unique_items
 
@@ -143,9 +144,9 @@ def _read_h5_dataset():
                 ))
 
                 dataset['y_' + key] = csr_matrix((
-                    f['ml20m']['X_' + key]['data'][:],
-                    f['ml20m']['X_' + key]['indices'][:],
-                    f['ml20m']['X_' + key]['indptr'][:]
+                    f['ml20m']['y_' + key]['data'][:],
+                    f['ml20m']['y_' + key]['indices'][:],
+                    f['ml20m']['y_' + key]['indptr'][:]
                 ))
 
         f.close()
@@ -278,7 +279,7 @@ def preprocess_ml20m():
             del dataset['y_' + key + '_df']
 
 
-    import code; code.interact(local=dict(globals(), **locals()))
+    # import code; code.interact(local=dict(globals(), **locals()))
 
     _write_h5_dataset(dataset)
     
