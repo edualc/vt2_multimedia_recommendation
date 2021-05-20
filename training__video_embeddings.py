@@ -4,8 +4,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
+from decouple import config
 
 from util.paths import ensure_dir
+from util.video_preprocessing import normalize_img
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
@@ -62,28 +64,24 @@ from wandb.keras import WandbCallback
 
 
 def data_dataframe():
-    return pd.read_csv('datasets/ml20m/avg_ratings.csv')
-
-def normalize_img(image, label):
-  """Normalizes images: `uint8` -> `float32`."""
-  return tf.cast(image, tf.float32) / 255., label
+    return pd.read_csv(config('ML20M_PATH') + 'avg_ratings.csv')
 
 df = data_dataframe()
 
 BATCH_SIZE = 8
-MODEL_PATH = 'trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S')
+MODEL_PATH = config('TRAINED_MODELS_PATH') + datetime.now().strftime('%Y_%m_%d__%H%M%S')
 MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 
 # builder = tfds.folder_dataset.ImageFolder(root_dir='/cluster/data/lehmacl1/datasets/ml20m_yt/training_224/')
-builder = tfds.folder_dataset.ImageFolder(root_dir='/mnt/all1/ml20m_yt/training_224/')
+builder = tfds.folder_dataset.ImageFolder(root_dir=config('KEYFRAME_PATH'))
 
-# # lehl@2021-04-23:
-# # TODO! ENABLE SHUFFLE
-# # 
-# train_ds = builder.as_dataset(split='train', shuffle_files=False, as_supervised=True)
-# test_ds = builder.as_dataset(split='test', shuffle_files=False, as_supervised=True)
-train_ds = builder.as_dataset(split='train', shuffle_files=True, as_supervised=True)
-test_ds = builder.as_dataset(split='test', shuffle_files=True, as_supervised=True)
+# lehl@2021-04-23:
+# TODO! ENABLE SHUFFLE
+# 
+train_ds = builder.as_dataset(split='train', shuffle_files=False, as_supervised=True)
+test_ds = builder.as_dataset(split='test', shuffle_files=False, as_supervised=True)
+# train_ds = builder.as_dataset(split='train', shuffle_files=True, as_supervised=True)
+# test_ds = builder.as_dataset(split='test', shuffle_files=True, as_supervised=True)
 
 train_ds = train_ds.map(normalize_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 train_ds = train_ds.cache()
@@ -98,6 +96,9 @@ test_ds = test_ds.map(normalize_img, num_parallel_calls=tf.data.experimental.AUT
 test_ds = test_ds.batch(BATCH_SIZE)
 test_ds = test_ds.cache()
 test_ds = test_ds.prefetch(tf.data.experimental.AUTOTUNE)
+
+import code; code.interact(local=dict(globals(), **locals()))
+exit()
 
 wandb.init(project='zhaw_vt2', entity='lehl')
 
@@ -124,7 +125,7 @@ model.fit(
         tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, period=10, save_weights_only=True, verbose=1)
     ],
     use_multiprocessing=True,
-    verbose=1
+    verbose=1,
 
     # lehl@2021-04-23:
     # TODO: Change to full epochs on Cluster
