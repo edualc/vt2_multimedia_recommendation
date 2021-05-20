@@ -10,3 +10,6 @@ The datasets are to be placed in the `datasets/` folder. They are available at t
 - MovieLens 20M (ML20M) Dataset: https://grouplens.org/datasets/movielens/20m/
 - MovieLens 20M Youtube Trailers (ML20M-YT) Dataset: https://grouplens.org/datasets/movielens/20m-youtube/
 
+### Author
+
+- Claude Lehmann (lehl@zhaw.ch)
