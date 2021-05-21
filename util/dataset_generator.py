@@ -18,9 +18,12 @@ and called "keyframe_dataset.h5"
 EXPECTED_IMAGE_FORMAT = '.png'
 EXPECTED_IMAGE_SHAPE = (224, 224, 3)
 
+# lehl@2021-05-20: TODO: Uncomment here
+# 
 DATASET_PATH = config('KEYFRAME_DATASET_GENERATOR_PATH')
+
 H5_IMAGE_FEATURES = DATASET_PATH + 'image_features.h5'
-H5_LABELS = DATASET_PATH + 'labels.h5'
+H5_LABELS = DATASET_PATH + 'image_labels.h5'
 
 def ensure_h5_dataset_exists(f, key, data):
     string_key = str(key)
@@ -67,6 +70,12 @@ with h5py.File(H5_IMAGE_FEATURES, 'a') as image_f:
             pbar.set_postfix({'movielens_id': movielens_id_folder})
             current_movielens_id = int(movielens_id_folder)
 
+            # lehl@2021-05-20: Ensure that only those movies are processed, where
+            # meta data is available (e.g. genres) in the metadata dataframe
+            # 
+            if current_movielens_id not in unique_movielens_ids:
+                continue
+
             # Check which files are images
             # 
             files = os.listdir(os.path.join(DATASET_PATH, movielens_id_folder))
@@ -86,11 +95,13 @@ with h5py.File(H5_IMAGE_FEATURES, 'a') as image_f:
             # Build up the relevant label information
             # 
             movie_metadata = df[df.movielens_id==current_movielens_id]
+
             trailer_labels = {
                 'mean_rating': movie_metadata.mean_rating.to_numpy(),
                 'genres': movie_metadata.genres.to_numpy()[0].split('|'),
                 'trailer_class_onehot': np.zeros(unique_movielens_ids.size)
             }
+
             trailer_labels['trailer_class_onehot'][np.where(unique_movielens_ids==current_movielens_id)[0][0]] = 1.0
             trailer_labels['genres_onehot'] = np.array([1.0 if genre in trailer_labels['genres'] else 0.0 for genre in unique_genres])
             del trailer_labels['genres']
