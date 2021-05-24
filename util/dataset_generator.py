@@ -40,25 +40,6 @@ def data_dataframe():
 
     return df3[['title','movielens_id','youtube_id','mean_rating','genres']]
 
-# f = h5py.File('MyDataset.h5', 'a')
-# for i in range(10):
-
-#   # Data to be appended
-#   new_data = np.ones(shape=(100,64,64)) * i
-#   new_label = np.ones(shape=(100,1)) * (i+1)
-
-#   if i == 0:
-#     # Create the dataset at first
-#     f.create_dataset('data', data=new_data, compression="gzip", chunks=True, maxshape=(None,64,64))
-#     f.create_dataset('label', data=new_label, compression="gzip", chunks=True, maxshape=(None,1)) 
-#   else:
-#     # Append new data to it
-#     f['data'].resize((f['data'].shape[0] + new_data.shape[0]), axis=0)
-#     f['data'][-new_data.shape[0]:] = new_data
-
-#     f['label'].resize((f['label'].shape[0] + new_label.shape[0]), axis=0)
-#     f['label'][-new_label.shape[0]:] = new_label
-
 df = data_dataframe()
 unique_genres = np.sort(np.unique(np.array([item for sublist in [genre_list.split('|') for genre_list in list(df.genres.unique())] for item in sublist])))
 unique_movielens_ids = np.sort(df.movielens_id.unique())
