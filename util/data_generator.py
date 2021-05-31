@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 import h5py
 
+from util.wandb_decorator import *
+
 # lehl@2021-05-07: Based on the blogpost of Standford.edu:
 # https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
 # 
@@ -76,6 +78,7 @@ class H5DataGenerator(tf.keras.utils.Sequence):
     def __len__(self):
         return self.indices.shape[0] // self.batch_size
 
+    @wandb_timing
     def __getitem__(self, index):
         # Generate the relative dataset indices
         # 
@@ -118,5 +121,6 @@ class H5DataGenerator(tf.keras.utils.Sequence):
 
         return X_keyframes, {'rating': y_rating, 'genres': y_genre, 'class': y_class }
 
+    @wandb_timing__end_epoch
     def on_epoch_end(self):
         np.random.shuffle(self.indices)

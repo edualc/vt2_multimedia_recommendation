@@ -34,8 +34,8 @@ TEST_SPLIT = 1 - TRAIN_SPLIT
 # 
 N_CLASSES = 64
 
+N_EPOCHS = 5
 BATCH_SIZE = 16
-
 
 def generate_new_split(n_classes=-1):
     config = {}
@@ -91,23 +91,17 @@ def generate_new_split(n_classes=-1):
 
     return config
 
-
 split_config = generate_new_split(N_CLASSES)
-
-# import time
-
-# for batch_size in [8, 16, 32, 64]:
-#     print('RUNNING BATCH SIZE ', batch_size)
-#     print('=' * 50)
-#     gen = H5DataGenerator(batch_size, H5_PATH, split_config['used_movie_indices'], split_config['train_ids'])
-    
-#     a = time.time()
-#     X_keyframes, y_rating, y_genre, y_class = gen.__getitem__(0)
-#     print(time.time() - a)
-
-#     del gen
-#     print('-' * 50)
-#     print('')
+wandb.init(project='zhaw_vt2', entity='lehl', group='embedding_n' + str(N_CLASSES), config={
+    'batch_size': BATCH_SIZE,
+    'n_epochs': N_EPOCHS,
+    'dataset': {
+        'n_classes': N_CLASSES,
+        'train': { 'shape': split_config['train_ids'].shape },
+        'valid': { 'shape': split_config['valid_ids'].shape },
+        'test': { 'shape': split_config['test_ids'].shape }
+    }
+})
 
 train_gen = H5DataGenerator(
     BATCH_SIZE,
@@ -126,7 +120,6 @@ valid_gen = H5DataGenerator(
 with h5py.File(H5_PATH, 'r') as f:
     num_genres = f['all_genres'].shape[0]
 
-# wandb.init(project='zhaw_vt2', entity='lehl')
 
 inp = keras.Input(shape=(224,224,3))
 
@@ -136,9 +129,9 @@ inp = keras.Input(shape=(224,224,3))
 mobilenet_feature_extractor = MobileNetV3Small(weights=None, pooling='avg', include_top=False)
 x = mobilenet_feature_extractor(inp)
 
-x = layers.Dense(1024, activation='relu')(x)
-x = layers.Dense(512, activation='relu')(x)
-x = layers.Dense(256, activation='relu')(x)
+x = layers.Dense(1024, activation='relu', name='dense_embedding_1024')(x)
+x = layers.Dense(512, activation='relu', name='dense_embedding_512')(x)
+x = layers.Dense(256, activation='relu', name='dense_embedding_256')(x)
 
 # OUTPUT: Mean Rating - Single value regression
 # 
@@ -176,24 +169,34 @@ ensure_dir(MODEL_CHECKPOINT_PATH)
 
 model.fit(
     train_gen,
-    epochs=5,
+    epochs=N_EPOCHS,
     validation_data=valid_gen,
 
-    # callbacks=[
-    #     WandbCallback(save_model=False),
-    #     tf.keras.callbacks.EarlyStopping(monitor='loss', patience=5, restore_best_weights=True),
-    #     tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_best_only=True, save_weights_only=True, verbose=1),
-    #     tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, period=10, save_weights_only=True, verbose=1)
-    # ],
+    callbacks=[
+        WandbCallback(save_model=False)
+
+        # lehl@2021-05-31: TODO Uncomment
+        # 
+        # WandbCallback(save_model=False),
+        # tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
+        # tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_best_only=True, save_weights_only=True, verbose=1),
+        # tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, period=10, save_weights_only=True, verbose=1)
+    ],
     
+    # lehl@2021-05-31: Incompatible with the current H5 data generator
+    # variant. Planning to use multiprocessing anyway.
+    # 
     # use_multiprocessing=True,
+    
     verbose=1,
 
     # lehl@2021-04-23:
     # TODO: Change to full epochs on Cluster
     # 
-    steps_per_epoch=32,
-    validation_steps=32
+    steps_per_epoch=8,
+    validation_steps=8
 )
 
+# lehl@2021-05-31: TODO Uncomment
+#
 # model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
