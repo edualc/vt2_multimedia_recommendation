@@ -18,6 +18,7 @@ and called "keyframe_dataset.h5"
 EXPECTED_IMAGE_FORMAT = '.png'
 EXPECTED_IMAGE_SHAPE = (224, 224, 3)
 H5_CHUNK_SIZE = 64
+H5_USE_COMPRESSION = False
 
 DATASET_PATH = config('KEYFRAME_DATASET_GENERATOR_PATH')
 
@@ -50,14 +51,20 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
     # Shape:    (num_trailers,)
     # 
     if 'reverse_index' not in dataset_f.keys():
-        dataset_f.create_dataset('reverse_index', data=unique_movielens_ids.astype(np.int32), compression='gzip', maxshape=(None,))
+        if H5_USE_COMPRESSION:
+            dataset_f.create_dataset('reverse_index', data=unique_movielens_ids.astype(np.int32), compression='gzip', maxshape=(None,))
+        else:
+            dataset_f.create_dataset('reverse_index', data=unique_movielens_ids.astype(np.int32), maxshape=(None,))
     
     # A list of all genres to reverse the onehot encoded genres entries
     # Ex.: ['Action', 'Sci-Fi', ...]
     # Shape:    (num_genres,)
     # 
     if 'all_genres' not in dataset_f.keys():
-        dataset_f.create_dataset('all_genres', data=unique_genres.astype(h5py.string_dtype()), compression='gzip', maxshape=(None,))
+        if H5_USE_COMPRESSION:
+            dataset_f.create_dataset('all_genres', data=unique_genres.astype(h5py.string_dtype()), compression='gzip', maxshape=(None,))
+        else:
+            dataset_f.create_dataset('all_genres', data=unique_genres.astype(h5py.string_dtype()), maxshape=(None,))
     
     # Contains the mean ratings for each trailer
     # Ex.: [4.7, 2.3, 3.1, ...]
@@ -68,7 +75,10 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         mean_ratings_with_id = mean_ratings_with_id[np.where(mean_ratings_with_id[:,0] == unique_movielens_ids)]
         mean_ratings = np.array(np.around(mean_ratings_with_id[:,1], decimals=3)).astype(np.float16)
 
-        dataset_f.create_dataset('mean_rating', data=mean_ratings, compression='gzip', maxshape=(None,))
+        if H5_USE_COMPRESSION:
+            dataset_f.create_dataset('mean_rating', data=mean_ratings, compression='gzip', maxshape=(None,))
+        else:
+            dataset_f.create_dataset('mean_rating', data=mean_ratings, maxshape=(None,))
 
     if 'onehot_genres' not in dataset_f.keys():
         # Contains the onehot-encoded Genre information for each trailer
@@ -77,7 +87,10 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         # 
         onehot_genres = np.array([np.array([1 if genre in row else 0 for genre in unique_genres]) for row in np.char.split(df.genres.to_numpy().astype(str), sep='|')]).astype(np.byte)
 
-        dataset_f.create_dataset('onehot_genres', data=onehot_genres, compression='gzip', maxshape=(None, None))
+        if H5_USE_COMPRESSION:
+            dataset_f.create_dataset('onehot_genres', data=onehot_genres, compression='gzip', maxshape=(None, None))
+        else:
+            dataset_f.create_dataset('onehot_genres', data=onehot_genres, maxshape=(None, None))
 
     # ===================================================================
 
@@ -121,8 +134,11 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         # 
         if 'keyframes' not in dataset_f.keys():
             # dataset_f.create_dataset('keyframes', data=tmp, compression='gzip', maxshape=(None,) + EXPECTED_IMAGE_SHAPE, chunks=(H5_CHUNK_SIZE,) + EXPECTED_IMAGE_SHAPE)
-            dataset_f.create_dataset('keyframes', data=tmp, compression='gzip', maxshape=(None,) + EXPECTED_IMAGE_SHAPE)
-    
+            if H5_USE_COMPRESSION:
+                dataset_f.create_dataset('keyframes', data=tmp, compression='gzip', maxshape=(None,) + EXPECTED_IMAGE_SHAPE)
+            else:
+                dataset_f.create_dataset('keyframes', data=tmp, maxshape=(None,) + EXPECTED_IMAGE_SHAPE)
+
         else:
             dataset_f['keyframes'].resize((dataset_f['keyframes'].shape[0] + tmp.shape[0]), axis=0)
             dataset_f['keyframes'][-tmp.shape[0]:, :, :, :] = tmp
@@ -133,8 +149,11 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         # 
         if 'indices' not in dataset_f.keys():
             # dataset_f.create_dataset('indices', data=tmp_indices, compression='gzip', maxshape=(None, 2), chunks=(H5_CHUNK_SIZE,2))
-            dataset_f.create_dataset('indices', data=tmp_indices, compression='gzip', maxshape=(None, 2))
-            
+            if H5_USE_COMPRESSION:
+                dataset_f.create_dataset('indices', data=tmp_indices, compression='gzip', maxshape=(None, 2))
+            else:
+                dataset_f.create_dataset('indices', data=tmp_indices, maxshape=(None, 2))
+
         else:
             dataset_f['indices'].resize((dataset_f['indices'].shape[0] + tmp_indices.shape[0]), axis=0)
             dataset_f['indices'][-tmp_indices.shape[0]:, :] = tmp_indices
