@@ -8,6 +8,7 @@ from decouple import config
 from util.print_logger import log
 from util.paths import ensure_dir
 from util.data_generator import H5DataGenerator
+from util.data_generator__parallel import ParallelH5DataGenerator
 from tqdm import tqdm
 
 import tensorflow as tf
@@ -34,8 +35,8 @@ TEST_SPLIT = 1 - TRAIN_SPLIT
 # 
 N_CLASSES = 64
 
-N_EPOCHS = 5
-BATCH_SIZE = 16
+N_EPOCHS = 25
+BATCH_SIZE = 32
 
 def generate_new_split(n_classes=-1):
     config = {}
@@ -103,14 +104,14 @@ wandb.init(project='zhaw_vt2', entity='lehl', group='embedding_n' + str(N_CLASSE
     }
 })
 
-train_gen = H5DataGenerator(
+train_gen = ParallelH5DataGenerator(
     BATCH_SIZE,
     H5_PATH,
     split_config['used_movie_indices'],
     split_config['train_ids']
 )
 
-valid_gen = H5DataGenerator(
+valid_gen = ParallelH5DataGenerator(
     BATCH_SIZE,
     H5_PATH,
     split_config['used_movie_indices'],
@@ -120,13 +121,17 @@ valid_gen = H5DataGenerator(
 with h5py.File(H5_PATH, 'r') as f:
     num_genres = f['all_genres'].shape[0]
 
-
 inp = keras.Input(shape=(224,224,3))
 
 # lehl@021-05-31: Should max or average pooling be applied to the output
 # of the MobileNet network? --> "pooling" keyword
 # 
-mobilenet_feature_extractor = MobileNetV3Small(weights=None, pooling='avg', include_top=False)
+mobilenet_feature_extractor = MobileNetV3Small(
+    weights='imagenet',
+    pooling='avg',
+    include_top=False
+)
+mobilenet_feature_extractor.trainable = False
 x = mobilenet_feature_extractor(inp)
 
 x = layers.Dense(1024, activation='relu', name='dense_embedding_1024')(x)
@@ -135,20 +140,25 @@ x = layers.Dense(256, activation='relu', name='dense_embedding_256')(x)
 
 # OUTPUT: Mean Rating - Single value regression
 # 
-o1 = layers.Dense(1, activation='relu', name='rating')(x)
+o1 = layers.Dense(64, activation='relu')(x)
+o1 = layers.Dense(32, activation='relu')(o1)
+o1 = layers.Dense(1, activation='relu', name='rating')(o1)
 
 # OUTPUT: Genres - Can be multiple, so softmax does not make sense
 # 
-o2 = layers.Dense(num_genres, activation='sigmoid', name='genres')(x)
+o2 = layers.Dense(128, activation='relu')(x)
+o2 = layers.Dense(64, activation='relu')(o2)
+o2 = layers.Dense(num_genres, activation='sigmoid', name='genres')(o2)
 
 # OUTPUT: Trailer Class - Can be only one, softmax!
 # 
-o3 = layers.Dense(N_CLASSES, activation='softmax', name='class')(x)
+o3 = layers.Dense(256, activation='relu')(x)
+o3 = layers.Dense(N_CLASSES, activation='softmax', name='class')(o3)
 
 model = keras.Model(inputs=inp, outputs=[o1, o2, o3])
 
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(0.001),
+    optimizer=tf.keras.optimizers.Adam(3e-4),
     loss={
         'rating': keras.losses.MeanSquaredError(),
         'genres': keras.losses.CategoricalCrossentropy(),
@@ -163,40 +173,27 @@ model.compile(
 
 model.summary()
 
-import code; code.interact(local=dict(globals(), **locals()))
-
 ensure_dir(MODEL_CHECKPOINT_PATH)
 
 model.fit(
     train_gen,
     epochs=N_EPOCHS,
     validation_data=valid_gen,
-
-    callbacks=[
-        WandbCallback(save_model=False)
-
-        # lehl@2021-05-31: TODO Uncomment
-        # 
-        # WandbCallback(save_model=False),
-        # tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
-        # tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_best_only=True, save_weights_only=True, verbose=1),
-        # tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, period=10, save_weights_only=True, verbose=1)
-    ],
-    
-    # lehl@2021-05-31: Incompatible with the current H5 data generator
-    # variant. Planning to use multiprocessing anyway.
-    # 
-    # use_multiprocessing=True,
-    
     verbose=1,
+    callbacks=[
+        WandbCallback(save_model=False),
+        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
+        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_best_only=True, save_weights_only=True, verbose=1),
+        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_freq=10 * (split_config['train_ids'].shape[0] // BATCH_SIZE), save_weights_only=True, verbose=1)
+    ],
+    steps_per_epoch=split_config['train_ids'].shape[0] // BATCH_SIZE,
+    validation_steps=split_config['valid_ids'].shape[0] // BATCH_SIZE
 
     # lehl@2021-04-23:
     # TODO: Change to full epochs on Cluster
     # 
-    steps_per_epoch=8,
-    validation_steps=8
+    # steps_per_epoch=8,
+    # validation_steps=8
 )
 
-# lehl@2021-05-31: TODO Uncomment
-#
-# model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
+model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
