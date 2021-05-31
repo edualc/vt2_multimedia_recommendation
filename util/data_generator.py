@@ -74,7 +74,7 @@ class H5DataGenerator(tf.keras.utils.Sequence):
         super().__delete__(instance)
 
     def __len__(self):
-        return self.sample_ids.shape[0]
+        return self.indices.shape[0] // self.batch_size
 
     def __getitem__(self, index):
         # Generate the relative dataset indices
@@ -116,7 +116,7 @@ class H5DataGenerator(tf.keras.utils.Sequence):
         y_class[np.arange(y_class.shape[0]), sorted_args] = 1
         del sorted_args
 
-        return X_keyframes, y_rating, y_genre, y_class
+        return X_keyframes, {'rating': y_rating, 'genres': y_genre, 'class': y_class }
 
     def on_epoch_end(self):
         np.random.shuffle(self.indices)

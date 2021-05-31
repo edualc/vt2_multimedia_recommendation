@@ -7,15 +7,20 @@ from decouple import config
 
 from util.print_logger import log
 from util.paths import ensure_dir
+from util.data_generator import H5DataGenerator
 from tqdm import tqdm
 
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
 from tensorflow.keras.applications import MobileNetV3Small
 
 import wandb
 from wandb.keras import WandbCallback
 
 H5_PATH = config('KEYFRAME_H5_PATH') + 'dataset.h5'
+MODEL_PATH = config('TRAINED_MODELS_PATH') + datetime.now().strftime('%Y_%m_%d__%H%M%S')
+MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 
 # Relative ratios of train-test split,
 # using validation data from the train_split
@@ -28,6 +33,9 @@ TEST_SPLIT = 1 - TRAIN_SPLIT
 # If all should be used, set to -1
 # 
 N_CLASSES = 64
+
+BATCH_SIZE = 16
+
 
 def generate_new_split(n_classes=-1):
     config = {}
@@ -84,60 +92,108 @@ def generate_new_split(n_classes=-1):
     return config
 
 
-# c = generate_new_split(64)
-c = generate_new_split()
+split_config = generate_new_split(N_CLASSES)
 
-from util.data_generator import H5DataGenerator
-import time
+# import time
+
+# for batch_size in [8, 16, 32, 64]:
+#     print('RUNNING BATCH SIZE ', batch_size)
+#     print('=' * 50)
+#     gen = H5DataGenerator(batch_size, H5_PATH, split_config['used_movie_indices'], split_config['train_ids'])
+    
+#     a = time.time()
+#     X_keyframes, y_rating, y_genre, y_class = gen.__getitem__(0)
+#     print(time.time() - a)
+
+#     del gen
+#     print('-' * 50)
+#     print('')
+
+train_gen = H5DataGenerator(
+    BATCH_SIZE,
+    H5_PATH,
+    split_config['used_movie_indices'],
+    split_config['train_ids']
+)
+
+valid_gen = H5DataGenerator(
+    BATCH_SIZE,
+    H5_PATH,
+    split_config['used_movie_indices'],
+    split_config['valid_ids']
+)
+
+with h5py.File(H5_PATH, 'r') as f:
+    num_genres = f['all_genres'].shape[0]
+
+# wandb.init(project='zhaw_vt2', entity='lehl')
+
+inp = keras.Input(shape=(224,224,3))
+
+# lehl@021-05-31: Should max or average pooling be applied to the output
+# of the MobileNet network? --> "pooling" keyword
+# 
+mobilenet_feature_extractor = MobileNetV3Small(weights=None, pooling='avg', include_top=False)
+x = mobilenet_feature_extractor(inp)
+
+x = layers.Dense(1024, activation='relu')(x)
+x = layers.Dense(512, activation='relu')(x)
+x = layers.Dense(256, activation='relu')(x)
+
+# OUTPUT: Mean Rating - Single value regression
+# 
+o1 = layers.Dense(1, activation='relu', name='rating')(x)
+
+# OUTPUT: Genres - Can be multiple, so softmax does not make sense
+# 
+o2 = layers.Dense(num_genres, activation='sigmoid', name='genres')(x)
+
+# OUTPUT: Trailer Class - Can be only one, softmax!
+# 
+o3 = layers.Dense(N_CLASSES, activation='softmax', name='class')(x)
+
+model = keras.Model(inputs=inp, outputs=[o1, o2, o3])
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(0.001),
+    loss={
+        'rating': keras.losses.MeanSquaredError(),
+        'genres': keras.losses.CategoricalCrossentropy(),
+        'class': keras.losses.CategoricalCrossentropy(),
+    },
+    metrics={
+        'rating': keras.metrics.MeanSquaredError(),
+        'genres': keras.metrics.CategoricalAccuracy(),
+        'class': keras.metrics.CategoricalAccuracy(),
+    }
+)
+
+model.summary()
 
 import code; code.interact(local=dict(globals(), **locals()))
 
-for batch_size in [8, 16, 32, 64]:
-    print('RUNNING BATCH SIZE ', batch_size)
-    print('=' * 50)
-    gen = H5DataGenerator(batch_size, H5_PATH, c['used_movie_indices'], c['train_ids'])
+ensure_dir(MODEL_CHECKPOINT_PATH)
+
+model.fit(
+    train_gen,
+    epochs=5,
+    validation_data=valid_gen,
+
+    # callbacks=[
+    #     WandbCallback(save_model=False),
+    #     tf.keras.callbacks.EarlyStopping(monitor='loss', patience=5, restore_best_weights=True),
+    #     tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_best_only=True, save_weights_only=True, verbose=1),
+    #     tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, period=10, save_weights_only=True, verbose=1)
+    # ],
     
-    a = time.time()
-    X_keyframes, y_rating, y_genre, y_class = gen.__getitem__(0)
-    print(time.time() - a)
+    # use_multiprocessing=True,
+    verbose=1,
 
-    del gen
-    print('-' * 50)
-    print('')
+    # lehl@2021-04-23:
+    # TODO: Change to full epochs on Cluster
+    # 
+    steps_per_epoch=32,
+    validation_steps=32
+)
 
-
-#     with h5py.File(H5_IMAGE_FEATURES, 'r') as image_f:
-
-#         # h5_dataset_ids = movielens_ids[train_ids[:,0]]
-
-#         X_train = None
-#         X_test = None
-#         X_valid = None
-
-#         for mid in tqdm(movielens_ids, desc='Extracting Feature Data'):
-#             try:
-#                 mid_keyframe_ids = np.sort(train_ids[np.where(movielens_ids[train_ids[:,0]] == mid)[0],1])
-                
-#                 if X_train is None:
-#                     X_train = image_f[mid][mid_keyframe_ids]
-#                 else:
-#                     X_train = np.vstack((X_train, image_f[mid][mid_keyframe_ids]))
-
-#                 mid_keyframe_ids = np.sort(test_ids[np.where(movielens_ids[test_ids[:,0]] == mid)[0],1])
-                
-#                 if X_test is None:
-#                     X_test = image_f[mid][mid_keyframe_ids]
-#                 else:
-#                     X_test = np.vstack((X_test, image_f[mid][mid_keyframe_ids]))
-
-#                 mid_keyframe_ids = np.sort(valid_ids[np.where(movielens_ids[valid_ids[:,0]] == mid)[0],1])
-                
-#                 if X_valid is None:
-#                     X_valid = image_f[mid][mid_keyframe_ids]
-#                 else:
-#                     X_valid = np.vstack((X_valid, image_f[mid][mid_keyframe_ids]))
-#             except Exception as e:
-#                 print(e)
-#                 import code; code.interact(local=dict(globals(), **locals()))
-
-#         import code; code.interact(local=dict(globals(), **locals()))
+# model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
