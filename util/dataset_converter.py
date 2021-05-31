@@ -120,7 +120,8 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         # Shape:    (num_trailers, (image_dimensions, such as 224,224,3))
         # 
         if 'keyframes' not in dataset_f.keys():
-            dataset_f.create_dataset('keyframes', data=tmp, compression='gzip', maxshape=(None,) + EXPECTED_IMAGE_SHAPE, chunks=(H5_CHUNK_SIZE,) + EXPECTED_IMAGE_SHAPE)
+            # dataset_f.create_dataset('keyframes', data=tmp, compression='gzip', maxshape=(None,) + EXPECTED_IMAGE_SHAPE, chunks=(H5_CHUNK_SIZE,) + EXPECTED_IMAGE_SHAPE)
+            dataset_f.create_dataset('keyframes', data=tmp, compression='gzip', maxshape=(None,) + EXPECTED_IMAGE_SHAPE)
     
         else:
             dataset_f['keyframes'].resize((dataset_f['keyframes'].shape[0] + tmp.shape[0]), axis=0)
@@ -131,7 +132,8 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         # Shape:    (num_keyframes, 2)
         # 
         if 'indices' not in dataset_f.keys():
-            dataset_f.create_dataset('indices', data=tmp_indices, compression='gzip', maxshape=(None, 2), chunks=(H5_CHUNK_SIZE,2))
+            # dataset_f.create_dataset('indices', data=tmp_indices, compression='gzip', maxshape=(None, 2), chunks=(H5_CHUNK_SIZE,2))
+            dataset_f.create_dataset('indices', data=tmp_indices, compression='gzip', maxshape=(None, 2))
             
         else:
             dataset_f['indices'].resize((dataset_f['indices'].shape[0] + tmp_indices.shape[0]), axis=0)
