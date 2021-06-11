@@ -22,9 +22,10 @@ H5_USE_COMPRESSION = False
 
 DATASET_PATH = config('KEYFRAME_DATASET_GENERATOR_PATH')
 
-H5_IMAGE_FEATURES = DATASET_PATH + 'image_features.h5'
-H5_LABELS = DATASET_PATH + 'image_labels.h5'
-H5_DATASET = DATASET_PATH + 'dataset.h5'
+if H5_USE_COMPRESSION:
+    H5_DATASET = DATASET_PATH + 'uncompressed_dataset.h5'
+else:
+    H5_DATASET = DATASET_PATH + 'dataset.h5'
 
 def ensure_h5_dataset_exists(f, key, data):
     string_key = str(key)
@@ -54,7 +55,7 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         if H5_USE_COMPRESSION:
             dataset_f.create_dataset('reverse_index', data=unique_movielens_ids.astype(np.int32), compression='gzip', maxshape=(None,))
         else:
-            dataset_f.create_dataset('reverse_index', data=unique_movielens_ids.astype(np.int32), maxshape=(None,))
+            dataset_f.create_dataset('reverse_index', data=unique_movielens_ids.astype(np.int32), compression='lzf', maxshape=(None,))
     
     # A list of all genres to reverse the onehot encoded genres entries
     # Ex.: ['Action', 'Sci-Fi', ...]
@@ -64,7 +65,7 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         if H5_USE_COMPRESSION:
             dataset_f.create_dataset('all_genres', data=unique_genres.astype(h5py.string_dtype()), compression='gzip', maxshape=(None,))
         else:
-            dataset_f.create_dataset('all_genres', data=unique_genres.astype(h5py.string_dtype()), maxshape=(None,))
+            dataset_f.create_dataset('all_genres', data=unique_genres.astype(h5py.string_dtype()), compression='lzf', maxshape=(None,))
     
     # Contains the mean ratings for each trailer
     # Ex.: [4.7, 2.3, 3.1, ...]
@@ -78,7 +79,7 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         if H5_USE_COMPRESSION:
             dataset_f.create_dataset('mean_rating', data=mean_ratings, compression='gzip', maxshape=(None,))
         else:
-            dataset_f.create_dataset('mean_rating', data=mean_ratings, maxshape=(None,))
+            dataset_f.create_dataset('mean_rating', data=mean_ratings, compression='lzf', maxshape=(None,))
 
     if 'onehot_genres' not in dataset_f.keys():
         # Contains the onehot-encoded Genre information for each trailer
@@ -90,7 +91,7 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
         if H5_USE_COMPRESSION:
             dataset_f.create_dataset('onehot_genres', data=onehot_genres, compression='gzip', maxshape=(None, None))
         else:
-            dataset_f.create_dataset('onehot_genres', data=onehot_genres, maxshape=(None, None))
+            dataset_f.create_dataset('onehot_genres', data=onehot_genres, compression='lzf', maxshape=(None, None))
 
     # ===================================================================
 
@@ -137,7 +138,7 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
             if H5_USE_COMPRESSION:
                 dataset_f.create_dataset('keyframes', data=tmp, compression='gzip', maxshape=(None,) + EXPECTED_IMAGE_SHAPE)
             else:
-                dataset_f.create_dataset('keyframes', data=tmp, maxshape=(None,) + EXPECTED_IMAGE_SHAPE)
+                dataset_f.create_dataset('keyframes', data=tmp, compression='lzf', maxshape=(None,) + EXPECTED_IMAGE_SHAPE)
 
         else:
             dataset_f['keyframes'].resize((dataset_f['keyframes'].shape[0] + tmp.shape[0]), axis=0)
@@ -152,7 +153,7 @@ with h5py.File(H5_DATASET, 'a') as dataset_f:
             if H5_USE_COMPRESSION:
                 dataset_f.create_dataset('indices', data=tmp_indices, compression='gzip', maxshape=(None, 2))
             else:
-                dataset_f.create_dataset('indices', data=tmp_indices, maxshape=(None, 2))
+                dataset_f.create_dataset('indices', data=tmp_indices, compression='lzf', maxshape=(None, 2))
 
         else:
             dataset_f['indices'].resize((dataset_f['indices'].shape[0] + tmp_indices.shape[0]), axis=0)
