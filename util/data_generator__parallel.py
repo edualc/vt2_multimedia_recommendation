@@ -9,10 +9,8 @@ import time
 import signal
 import sys
 
-from util.wandb_decorator import *
-
-QUEUE_SIZE = 4
-NUM_PROCESSES = 20
+QUEUE_SIZE = 8
+NUM_PROCESSES = 32
 
 # Taken from the bachelor thesis codebase around the ZHAW_DeepVoice code base,
 # loosely based on the parallelisation efforts of Daniel Nerurer (neud@zhaw.ch)
@@ -77,7 +75,6 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
                 Xb, yb = self.__get_batch__(f)
                 self.train_queue.put([Xb, yb])
     
-    @wandb_timing
     def __get_batch__(self, f):
         if self.exit_process:
             return None, None
@@ -107,6 +104,13 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
         # 
         mean_ratings = f['mean_rating'][:]
         y_rating = mean_ratings[h5_indices[:,0]]
+
+        # lehl@2021-06-04: In case there are NaN values
+        # as mean ratings, replace those with the average of all ratings
+        # 
+        if np.isnan(y_rating).any():
+            y_rating[np.isnan(y_rating)] = np.mean(mean_ratings[~np.isnan(mean_ratings)])
+
         del mean_ratings
 
         # Load the one-hot genres for this batch
@@ -124,7 +128,6 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
 
         return X_keyframes, {'rating': y_rating, 'genres': y_genre, 'class': y_class }
 
-    @wandb_timing__end_epoch
     def on_epoch_end(self):
         pass
 

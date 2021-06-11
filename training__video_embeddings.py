@@ -27,21 +27,22 @@ MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 # using validation data from the train_split
 # 
 TRAIN_SPLIT = 0.8
-VALID_SPLIT = 0.2
 TEST_SPLIT = 1 - TRAIN_SPLIT
 
 # How many classes should be used? 
 # If all should be used, set to -1
 # 
-N_CLASSES = 64
+N_CLASSES = -1
 
-N_EPOCHS = 25
-BATCH_SIZE = 32
+N_EPOCHS = 256
+BATCH_SIZE = 64
 
 def generate_new_split(n_classes=-1):
     config = {}
 
     with h5py.File(H5_PATH, 'r') as f:
+        log('Starting to extract the indices from h5.')
+
         # Check if a number of classes is set to be used (instead of all)
         # 
         if n_classes > 0:
@@ -74,34 +75,44 @@ def generate_new_split(n_classes=-1):
         config['train_ids'] = split_indices[~test_mask, :]
         del test_mask
 
-        # Validation split from training data, given the ratio
-        # 
-        valid_mask = (np.random.rand(config['train_ids'].shape[0]) < VALID_SPLIT)
-        config['valid_ids'] = config['train_ids'][valid_mask]
-        config['train_ids'] = config['train_ids'][~valid_mask]
-        del valid_mask
-
         # Dataset split characteristics
         # 
         log(f"Using train-test-split of {round(TRAIN_SPLIT,2)} - {round(TEST_SPLIT,2)}")
-        log(f"  with a further {round(VALID_SPLIT,2)} of training data for validation:")
         log(f"-> {config['train_ids'].shape[0]} keyframes for training    ({round(100.0 * config['train_ids'].shape[0] / split_indices.shape[0],2)}%)")
-        log(f"-> {config['valid_ids'].shape[0]} keyframes for validation  ({round(100.0 * config['valid_ids'].shape[0] / split_indices.shape[0],2)}%)")
         log(f"-> {config['test_ids'].shape[0]} keyframes for testing     ({round(100.0 * config['test_ids'].shape[0] / split_indices.shape[0],2)}%)")
         log(50 * '=')
 
     return config
 
+log('Starting to generate the data split')
 split_config = generate_new_split(N_CLASSES)
-wandb.init(project='zhaw_vt2', entity='lehl', group='embedding_n' + str(N_CLASSES), config={
+log('Done generating the data split')
+
+# Save Split Configuration
+# 
+ensure_dir(MODEL_CHECKPOINT_PATH)
+
+with h5py.File(MODEL_PATH + '/split_config.h5', 'w') as f:
+    f.create_dataset('used_movie_indices', data=split_config['used_movie_indices'])
+    f.create_dataset('n_classes', data=[split_config['n_classes']])
+    f.create_dataset('train_ids', data=split_config['train_ids'])
+    f.create_dataset('test_ids', data=split_config['test_ids'])
+
+# wandb_group_name = 'development'
+if N_CLASSES < 0:
+    wandb_group_name = 'embedding_nALL'
+else:
+    wandb_group_name = 'embedding_n' + str(N_CLASSES)
+
+wandb.init(project='zhaw_vt2', entity='lehl', group=wandb_group_name, config={
     'batch_size': BATCH_SIZE,
     'n_epochs': N_EPOCHS,
     'dataset': {
         'n_classes': N_CLASSES,
         'train': { 'shape': split_config['train_ids'].shape },
-        'valid': { 'shape': split_config['valid_ids'].shape },
         'test': { 'shape': split_config['test_ids'].shape }
-    }
+    },
+    'model_path': MODEL_PATH
 })
 
 train_gen = ParallelH5DataGenerator(
@@ -111,11 +122,11 @@ train_gen = ParallelH5DataGenerator(
     split_config['train_ids']
 )
 
-valid_gen = ParallelH5DataGenerator(
+test_gen = ParallelH5DataGenerator(
     BATCH_SIZE,
     H5_PATH,
     split_config['used_movie_indices'],
-    split_config['valid_ids']
+    split_config['test_ids']
 )
 
 with h5py.File(H5_PATH, 'r') as f:
@@ -145,6 +156,8 @@ o1 = layers.Dense(32, activation='relu')(o1)
 o1 = layers.Dense(1, activation='relu', name='rating')(o1)
 
 # OUTPUT: Genres - Can be multiple, so softmax does not make sense
+# Treat each output as an individual distribution, because of that
+# use binary crossentropy
 # 
 o2 = layers.Dense(128, activation='relu')(x)
 o2 = layers.Dense(64, activation='relu')(o2)
@@ -161,7 +174,7 @@ model.compile(
     optimizer=tf.keras.optimizers.Adam(3e-4),
     loss={
         'rating': keras.losses.MeanSquaredError(),
-        'genres': keras.losses.CategoricalCrossentropy(),
+        'genres': keras.losses.BinaryCrossentropy(),
         'class': keras.losses.CategoricalCrossentropy(),
     },
     metrics={
@@ -173,21 +186,19 @@ model.compile(
 
 model.summary()
 
-ensure_dir(MODEL_CHECKPOINT_PATH)
-
 model.fit(
     train_gen,
     epochs=N_EPOCHS,
-    validation_data=valid_gen,
+    validation_data=test_gen,
     verbose=1,
     callbacks=[
         WandbCallback(save_model=False),
-        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
-        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_best_only=True, save_weights_only=True, verbose=1),
-        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH, save_freq=10 * (split_config['train_ids'].shape[0] // BATCH_SIZE), save_weights_only=True, verbose=1)
+        # tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
+        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH + '/best.hdf5', save_best_only=True, save_weights_only=True, verbose=1),
+        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH + '/weights_ep{epoch:02d}.hdf5', save_freq=2 * (split_config['train_ids'].shape[0] // BATCH_SIZE), save_weights_only=True, verbose=1)
     ],
     steps_per_epoch=split_config['train_ids'].shape[0] // BATCH_SIZE,
-    validation_steps=split_config['valid_ids'].shape[0] // BATCH_SIZE
+    validation_steps=split_config['test_ids'].shape[0] // BATCH_SIZE
 
     # lehl@2021-04-23:
     # TODO: Change to full epochs on Cluster
