@@ -19,7 +19,7 @@ from tensorflow.keras.applications import MobileNetV3Small
 import wandb
 from wandb.keras import WandbCallback
 
-H5_PATH = config('KEYFRAME_H5_PATH') + 'dataset.h5'
+H5_PATH = config('KEYFRAME_H5_PATH') + 'uncompressed_dataset.h5'
 MODEL_PATH = config('TRAINED_MODELS_PATH') + datetime.now().strftime('%Y_%m_%d__%H%M%S')
 MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 
@@ -101,14 +101,15 @@ with h5py.File(MODEL_PATH + '/split_config.h5', 'w') as f:
 # wandb_group_name = 'development'
 if N_CLASSES < 0:
     wandb_group_name = 'embedding_nALL'
+    split_config['n_classes']
 else:
-    wandb_group_name = 'embedding_n' + str(N_CLASSES)
+    wandb_group_name = 'embedding_n' + str(split_config['n_classes'])
 
 wandb.init(project='zhaw_vt2', entity='lehl', group=wandb_group_name, config={
     'batch_size': BATCH_SIZE,
     'n_epochs': N_EPOCHS,
     'dataset': {
-        'n_classes': N_CLASSES,
+        'n_classes': split_config['n_classes'],
         'train': { 'shape': split_config['train_ids'].shape },
         'test': { 'shape': split_config['test_ids'].shape }
     },
@@ -166,7 +167,7 @@ o2 = layers.Dense(num_genres, activation='sigmoid', name='genres')(o2)
 # OUTPUT: Trailer Class - Can be only one, softmax!
 # 
 o3 = layers.Dense(256, activation='relu')(x)
-o3 = layers.Dense(N_CLASSES, activation='softmax', name='class')(o3)
+o3 = layers.Dense(split_config['n_classes'], activation='softmax', name='class')(o3)
 
 model = keras.Model(inputs=inp, outputs=[o1, o2, o3])
 
