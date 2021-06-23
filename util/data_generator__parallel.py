@@ -9,14 +9,11 @@ import time
 import signal
 import sys
 
-QUEUE_SIZE = 8
-NUM_PROCESSES = 32
-
 # Taken from the bachelor thesis codebase around the ZHAW_DeepVoice code base,
 # loosely based on the parallelisation efforts of Daniel Nerurer (neud@zhaw.ch)
 #
 class ParallelH5DataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, batch_size, h5_path, used_movie_indices, indices, shuffle=True):
+    def __init__(self, batch_size, h5_path, used_movie_indices, indices, queue_size, n_processes, shuffle=True):
         self.batch_size = batch_size
         self.shuffle = shuffle
 
@@ -32,6 +29,9 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
         # 
         self.indices = indices
 
+        self.queue_size = queue_size
+        self.n_processes = n_processes
+
         # Create handlers to stop threads in case of abort
         # 
         signal.signal(signal.SIGTERM, self.signal_terminate_queue)
@@ -41,11 +41,12 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
 
     def start_queue(self):
         self.exit_process = False
-        self.train_queue = Queue(QUEUE_SIZE)
+        self.train_queue = Queue(self.queue_size)
 
         self.processes = list()
-        for i in range(NUM_PROCESSES):
+        for i in range(self.n_processes):
             mp_process = Process(target=self.sample_queue)
+            mp_process.daemon = True
             self.processes.append(mp_process)
             
             mp_process.start()
@@ -57,11 +58,15 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
         print('Stopping threads...')
         self.exit_process = True
         time.sleep(5)
-        print("\t5 seconds elapsed... kill threads.")
-        for i, mp_process in enumerate(self.processes):
-            print("\tTerminating process {}/{}...".format(i+1, NUM_PROCESSES),end='')
-            mp_process.kill()
-            print('done')
+        print("\t5 seconds elapsed... exiting.")
+
+        # lehl@2021-06-23: Apparently, using daemon processes is enough
+        # to have them be destroyed without issue.
+        # 
+        # for i, mp_process in enumerate(self.processes):
+        #     print("\tTerminating process {}/{}...".format(i+1, self.n_processes),end='')
+        #     mp_process.kill()
+        #     print('done') 
         sys.exit(1)
 
     # Function overload for signal API

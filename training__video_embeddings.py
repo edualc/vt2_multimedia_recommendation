@@ -1,3 +1,4 @@
+import argparse
 import os
 import numpy as np
 import pandas as pd
@@ -9,17 +10,15 @@ from util.print_logger import log
 from util.paths import ensure_dir
 from util.data_generator import H5DataGenerator
 from util.data_generator__parallel import ParallelH5DataGenerator
+from models.embedding_models import keyframe_embedding_model
 from tqdm import tqdm
 
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.applications import MobileNetV3Small
 
 import wandb
 from wandb.keras import WandbCallback
 
-H5_PATH = config('KEYFRAME_H5_PATH') + 'uncompressed_dataset.h5'
+H5_PATH = config('KEYFRAME_H5_PATH') + 'dataset.h5'
 MODEL_PATH = config('TRAINED_MODELS_PATH') + datetime.now().strftime('%Y_%m_%d__%H%M%S')
 MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 
@@ -33,12 +32,59 @@ TEST_SPLIT = 1 - TRAIN_SPLIT
 # If all should be used, set to -1
 # 
 N_CLASSES = -1
+N_GENRES = 20
 
-N_EPOCHS = 256
+N_EPOCHS = 64
 BATCH_SIZE = 64
 
-def generate_new_split(n_classes=-1):
+# Default parameters for the Datagenerators
+QUEUE_SIZE = 8
+NUM_PROCESSES = 32
+
+def get_data_generators(split_config, args):
+    train_gen = ParallelH5DataGenerator(
+        args.batch_size,
+        H5_PATH,
+        split_config['used_movie_indices'],
+        split_config['train_ids'],
+        args.train_queue_size,
+        args.train_n_processes
+    )
+
+    test_gen = ParallelH5DataGenerator(
+        args.batch_size,
+        H5_PATH,
+        split_config['used_movie_indices'],
+        split_config['test_ids'],
+        args.test_queue_size,
+        args.test_n_processes
+    )
+
+    return train_gen, test_gen
+
+def initialize_wandb(split_config, debug=False):
+    wandb_group_name = 'development'
+    
+    if not debug:
+        wandb_group_name = 'embedding_nALL'
+        
+        if N_CLASSES > 0:
+            wandb_group_name = 'embedding_n' + str(split_config['n_classes'])
+
+    wandb.init(project='zhaw_vt2', entity='lehl', group=wandb_group_name, config={
+        'batch_size': BATCH_SIZE,
+        'n_epochs': N_EPOCHS,
+        'dataset': {
+            'n_classes': split_config['n_classes'],
+            'train': { 'shape': split_config['train_ids'].shape },
+            'test': { 'shape': split_config['test_ids'].shape }
+        },
+        'model_path': MODEL_PATH
+    })
+
+def generate_new_split(n_classes):
     config = {}
+    log('Starting to generate the data split')
 
     with h5py.File(H5_PATH, 'r') as f:
         log('Starting to extract the indices from h5.')
@@ -82,130 +128,87 @@ def generate_new_split(n_classes=-1):
         log(f"-> {config['test_ids'].shape[0]} keyframes for testing     ({round(100.0 * config['test_ids'].shape[0] / split_indices.shape[0],2)}%)")
         log(50 * '=')
 
+    log('Done generating the data split')
+
+    _save_split_config(config)
+
     return config
 
-log('Starting to generate the data split')
-split_config = generate_new_split(N_CLASSES)
-log('Done generating the data split')
+def _save_split_config(split_config):
+    ensure_dir(MODEL_CHECKPOINT_PATH)
 
-# Save Split Configuration
-# 
-ensure_dir(MODEL_CHECKPOINT_PATH)
+    with h5py.File(MODEL_PATH + '/split_config.h5', 'w') as f:
+        f.create_dataset('used_movie_indices', data=split_config['used_movie_indices'])
+        f.create_dataset('n_classes', data=[split_config['n_classes']])
+        f.create_dataset('train_ids', data=split_config['train_ids'])
+        f.create_dataset('test_ids', data=split_config['test_ids'])
 
-with h5py.File(MODEL_PATH + '/split_config.h5', 'w') as f:
-    f.create_dataset('used_movie_indices', data=split_config['used_movie_indices'])
-    f.create_dataset('n_classes', data=[split_config['n_classes']])
-    f.create_dataset('train_ids', data=split_config['train_ids'])
-    f.create_dataset('test_ids', data=split_config['test_ids'])
+def train_model(model, split_config, args):
+    train_gen, test_gen = get_data_generators(split_config, args)
 
-# wandb_group_name = 'development'
-if N_CLASSES < 0:
-    wandb_group_name = 'embedding_nALL'
-    split_config['n_classes']
-else:
-    wandb_group_name = 'embedding_n' + str(split_config['n_classes'])
+    def get_epoch_steps(num_samples):
+        return num_samples // args.batch_size
 
-wandb.init(project='zhaw_vt2', entity='lehl', group=wandb_group_name, config={
-    'batch_size': BATCH_SIZE,
-    'n_epochs': N_EPOCHS,
-    'dataset': {
-        'n_classes': split_config['n_classes'],
-        'train': { 'shape': split_config['train_ids'].shape },
-        'test': { 'shape': split_config['test_ids'].shape }
-    },
-    'model_path': MODEL_PATH
-})
+    if args.debug:
+        steps_per_epoch = 8
+        validation_steps = 8
+    else:
+        steps_per_epoch = get_epoch_steps(split_config['train_ids'].shape[0])
+        validation_steps = get_epoch_steps(split_config['test_ids'].shape[0])
 
-train_gen = ParallelH5DataGenerator(
-    BATCH_SIZE,
-    H5_PATH,
-    split_config['used_movie_indices'],
-    split_config['train_ids']
-)
+    model.fit(
+        train_gen,
+        epochs=args.n_epochs,
+        validation_data=test_gen,
+        verbose=1,
+        callbacks=[
+            WandbCallback(save_model=False),
+            # tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
+            tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH + '/best.hdf5', save_best_only=True, save_weights_only=True, verbose=1),
+            tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH + '/weights_ep{epoch:02d}.hdf5', save_freq=2 * get_epoch_steps(split_config['train_ids'].shape[0]), save_weights_only=True, verbose=1)
+        ],
+        steps_per_epoch=steps_per_epoch,
+        validation_steps=validation_steps
+    )
 
-test_gen = ParallelH5DataGenerator(
-    BATCH_SIZE,
-    H5_PATH,
-    split_config['used_movie_indices'],
-    split_config['test_ids']
-)
+    model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
 
-with h5py.File(H5_PATH, 'r') as f:
-    num_genres = f['all_genres'].shape[0]
+def do_training(args):
+    split_config = generate_new_split(args.n_classes)
 
-inp = keras.Input(shape=(224,224,3))
+    initialize_wandb(split_config, debug=args.debug)
 
-# lehl@021-05-31: Should max or average pooling be applied to the output
-# of the MobileNet network? --> "pooling" keyword
-# 
-mobilenet_feature_extractor = MobileNetV3Small(
-    weights='imagenet',
-    pooling='avg',
-    include_top=False
-)
-mobilenet_feature_extractor.trainable = False
-x = mobilenet_feature_extractor(inp)
+    model = keyframe_embedding_model(
+        n_classes=split_config['n_classes'],
+        n_genres=args.n_genres,
+        rating_head=args.rating_head,
+        genre_head=args.genre_head,
+        class_head=args.class_head,
+        self_supervised_head=args.self_supervised_head
+    )
 
-x = layers.Dense(1024, activation='relu', name='dense_embedding_1024')(x)
-x = layers.Dense(512, activation='relu', name='dense_embedding_512')(x)
-x = layers.Dense(256, activation='relu', name='dense_embedding_256')(x)
+    train_model(model, split_config, args)
 
-# OUTPUT: Mean Rating - Single value regression
-# 
-o1 = layers.Dense(64, activation='relu')(x)
-o1 = layers.Dense(32, activation='relu')(o1)
-o1 = layers.Dense(1, activation='relu', name='rating')(o1)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='VT2_VideoEmbedding')
 
-# OUTPUT: Genres - Can be multiple, so softmax does not make sense
-# Treat each output as an individual distribution, because of that
-# use binary crossentropy
-# 
-o2 = layers.Dense(128, activation='relu')(x)
-o2 = layers.Dense(64, activation='relu')(o2)
-o2 = layers.Dense(num_genres, activation='sigmoid', name='genres')(o2)
+    parser.add_argument('--debug', action='store_true')
 
-# OUTPUT: Trailer Class - Can be only one, softmax!
-# 
-o3 = layers.Dense(256, activation='relu')(x)
-o3 = layers.Dense(split_config['n_classes'], activation='softmax', name='class')(o3)
+    parser.add_argument('--n_classes', type=int, default=N_CLASSES, help='Number of movie classes')
+    parser.add_argument('--n_genres', type=int, default=N_GENRES, help='Number of movie genres')
+    parser.add_argument('--n_epochs', type=int, default=N_EPOCHS, help='Number of epochs to train')
+    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size for training and validation')
 
-model = keras.Model(inputs=inp, outputs=[o1, o2, o3])
+    parser.add_argument('--rating_head', type=bool, default=True)
+    parser.add_argument('--genre_head', type=bool, default=True)
+    parser.add_argument('--class_head', type=bool, default=True)
+    parser.add_argument('--self_supervised_head', type=bool, default=False)
 
-model.compile(
-    optimizer=tf.keras.optimizers.Adam(3e-4),
-    loss={
-        'rating': keras.losses.MeanSquaredError(),
-        'genres': keras.losses.BinaryCrossentropy(),
-        'class': keras.losses.CategoricalCrossentropy(),
-    },
-    metrics={
-        'rating': keras.metrics.MeanSquaredError(),
-        'genres': keras.metrics.CategoricalAccuracy(),
-        'class': keras.metrics.CategoricalAccuracy(),
-    }
-)
+    parser.add_argument('--train_queue_size', type=int, default=QUEUE_SIZE)
+    parser.add_argument('--train_n_processes', type=int, default=NUM_PROCESSES)
+    parser.add_argument('--test_queue_size', type=int, default=QUEUE_SIZE)
+    parser.add_argument('--test_n_processes', type=int, default=NUM_PROCESSES)
 
-model.summary()
+    args = parser.parse_args()
 
-model.fit(
-    train_gen,
-    epochs=N_EPOCHS,
-    validation_data=test_gen,
-    verbose=1,
-    callbacks=[
-        WandbCallback(save_model=False),
-        # tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
-        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH + '/best.hdf5', save_best_only=True, save_weights_only=True, verbose=1),
-        tf.keras.callbacks.ModelCheckpoint(monitor='val_loss', filepath=MODEL_CHECKPOINT_PATH + '/weights_ep{epoch:02d}.hdf5', save_freq=2 * (split_config['train_ids'].shape[0] // BATCH_SIZE), save_weights_only=True, verbose=1)
-    ],
-    steps_per_epoch=split_config['train_ids'].shape[0] // BATCH_SIZE,
-    validation_steps=split_config['test_ids'].shape[0] // BATCH_SIZE
-
-    # lehl@2021-04-23:
-    # TODO: Change to full epochs on Cluster
-    # 
-    # steps_per_epoch=8,
-    # validation_steps=8
-)
-
-model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
+    do_training(args)
