@@ -65,14 +65,24 @@ def get_data_generators(split_config, args):
 
     return train_gen, test_gen
 
-def initialize_wandb(split_config, debug=False):
-    wandb_group_name = 'development'
+def initialize_wandb(split_config, args):
+    wandb_base_name = 'embedding'
+
+    heads = [
+        'R' if args.rating_head else '',
+        'G' if args.genre_head else '',
+        'C' if args.class_head else '',
+        'S' if args.self_supervised_head else ''
+    ]
+    wandb_base_name = wandb_base_name + '_' + ''.join(heads)
     
-    if not debug:
-        wandb_group_name = 'embedding_nALL'
+    if not args.debug:
+        wandb_group_name = wandb_base_name + '_nALL'
         
         if N_CLASSES > 0:
-            wandb_group_name = 'embedding_n' + str(split_config['n_classes'])
+            wandb_group_name = wandb_base_name + '_n' + str(split_config['n_classes'])
+    else:
+        wandb_group_name = wandb_base_name + '_development'
 
     wandb.init(project='zhaw_vt2', entity='lehl', group=wandb_group_name, config={
         'batch_size': BATCH_SIZE,
@@ -179,7 +189,7 @@ def train_model(model, split_config, args):
 def do_training(args):
     split_config = generate_new_split(args.n_classes)
 
-    initialize_wandb(split_config, debug=args.debug)
+    initialize_wandb(split_config, args)
 
     model = keyframe_embedding_model(
         n_classes=split_config['n_classes'],
