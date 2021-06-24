@@ -83,7 +83,7 @@ def initialize_wandb(split_config, args):
     if not args.debug:
         wandb_group_name = wandb_base_name + '_nALL'
         
-        if N_CLASSES > 0:
+        if split_config['n_classes'] > 0:
             wandb_group_name = wandb_base_name + '_n' + str(split_config['n_classes'])
     else:
         wandb_group_name = wandb_base_name + '_development'
