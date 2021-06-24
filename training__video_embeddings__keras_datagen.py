@@ -170,12 +170,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    
-
     do_training(args)
-
-   
-    # gen = CustomDataGenerator(df, 16)
-    # Xb, yb = gen.__getitem__(0)
-    # import code; code.interact(local=dict(globals(), **locals()))
-
