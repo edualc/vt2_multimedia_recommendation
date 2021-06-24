@@ -57,7 +57,7 @@ def generate_split(args):
 
     unique_genres = np.sort(np.unique(np.array([item for sublist in [genre_list.split('|') for genre_list in list(df.genres.unique())] for item in sublist])))
 
-    df_train, df_test = train_test_split(df, test_size=TEST_SPLIT)
+    df_train, df_test = train_test_split(df, test_size=TEST_SPLIT, random_state=args.seed)
 
     split_config = {
         'n_classes': df.movielens_id.nunique(),
