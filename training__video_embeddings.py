@@ -51,6 +51,9 @@ def get_data_generators(split_config, args):
         args.train_n_processes
     )
 
+    # f = h5py.File(train_gen.h5_path, 'r')
+    # train_gen.__get_batch__(f)
+
     test_gen = ParallelH5DataGenerator(
         args.batch_size,
         H5_PATH,
@@ -199,10 +202,21 @@ if __name__ == '__main__':
     parser.add_argument('--n_epochs', type=int, default=N_EPOCHS, help='Number of epochs to train')
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size for training and validation')
 
-    parser.add_argument('--rating_head', type=bool, default=True)
-    parser.add_argument('--genre_head', type=bool, default=True)
-    parser.add_argument('--class_head', type=bool, default=True)
-    parser.add_argument('--self_supervised_head', type=bool, default=False)
+    parser.add_argument('--rating_head', dest='rating_head', action='store_true')
+    parser.add_argument('--no_rating_head', dest='rating_head', action='store_false')
+    parser.set_defaults(rating_head=True)
+
+    parser.add_argument('--genre_head', dest='genre_head', action='store_true')
+    parser.add_argument('--no_genre_head', dest='genre_head', action='store_false')
+    parser.set_defaults(genre_head=True)
+    
+    parser.add_argument('--class_head', dest='class_head', action='store_true')
+    parser.add_argument('--no_class_head', dest='class_head', action='store_false')
+    parser.set_defaults(class_head=True)
+    
+    parser.add_argument('--self_supervised_head', dest='self_supervised_head', action='store_true')
+    parser.add_argument('--no_self_supervised_head', dest='self_supervised_head', action='store_false')
+    parser.set_defaults(self_supervised_head=False)
 
     parser.add_argument('--train_queue_size', type=int, default=QUEUE_SIZE)
     parser.add_argument('--train_n_processes', type=int, default=NUM_PROCESSES)

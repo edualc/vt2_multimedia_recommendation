@@ -29,6 +29,14 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
         # 
         self.indices = indices
 
+        # Save the indices inside the h5-file for the
+        # keyframes available in this dataset
+        # 
+        with h5py.File(self.h5_path, 'r') as f:
+            keyframe_indices = f['indices'][:]
+            mask = (keyframe_indices[:, None] == self.indices).all(-1).any(1)
+            self.h5_indices = np.sort(np.where(mask)[0])
+
         self.queue_size = queue_size
         self.n_processes = n_processes
 
@@ -84,22 +92,29 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
         if self.exit_process:
             return None, None
 
-        # Generate the relative dataset indices
-        # 
-        # indices = self.indices[index*self.batch_size:(index+1)*self.batch_size]
-        indices = np.copy(self.indices[np.random.choice(np.arange(self.indices.shape[0]), self.batch_size, replace=False)])
+        # # Generate the relative dataset indices
+        # # 
+        # # indices = self.indices[index*self.batch_size:(index+1)*self.batch_size]
+        # indices = np.copy(self.indices[np.random.choice(np.arange(self.indices.shape[0]), self.batch_size, replace=False)])
 
-        # Extract and generate the indices inside the h5 dataset
-        # 
-        keyframe_indices = f['indices'][:]
-        mask = (keyframe_indices[:, None] == indices).all(-1).any(1)
+        # # Extract and generate the indices inside the h5 dataset
+        # # 
+        # keyframe_indices = f['indices'][:]
+        # mask = (keyframe_indices[:, None] == indices).all(-1).any(1)
     
-        # Evaluate the indices used in the h5 dataset, given this batch
-        # and get the (transformed) indices as h5_indices, to reflect the
-        # potentially different ordering
+        # # Evaluate the indices used in the h5 dataset, given this batch
+        # # and get the (transformed) indices as h5_indices, to reflect the
+        # # potentially different ordering
+        # # 
+        # h5_batch_idx = np.where(mask)[0]
+
+        # lehl@2021-06-23: Speedup improvement to extracting the relevant
         # 
-        h5_batch_idx = np.where(mask)[0]
-        h5_indices = keyframe_indices[h5_batch_idx,:]
+        batch_indices = np.random.choice(np.arange(self.h5_indices.shape[0]), self.batch_size, replace=False)
+        h5_batch_idx = np.copy(self.h5_indices[np.sort(batch_indices)])
+        
+        keyframe_indices = f['indices'][:]
+        h5_keyframe_movie_indices = keyframe_indices[h5_batch_idx,:]
 
         # Load the keyframes for this batch
         # 
@@ -108,7 +123,7 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
         # Generate the ratings for this batch
         # 
         mean_ratings = f['mean_rating'][:]
-        y_rating = mean_ratings[h5_indices[:,0]]
+        y_rating = mean_ratings[h5_keyframe_movie_indices[:,0]]
 
         # lehl@2021-06-04: In case there are NaN values
         # as mean ratings, replace those with the average of all ratings
@@ -121,12 +136,12 @@ class ParallelH5DataGenerator(tf.keras.utils.Sequence):
         # Load the one-hot genres for this batch
         # 
         genres = f['onehot_genres'][:]
-        y_genre = genres[h5_indices[:,0]]
+        y_genre = genres[h5_keyframe_movie_indices[:,0]]
         del genres
 
         # Generate the one-hot class labels for this batch
         # 
-        sorted_args = np.searchsorted(self.used_movie_indices, h5_indices[:,0])
+        sorted_args = np.searchsorted(self.used_movie_indices, h5_keyframe_movie_indices[:,0])
         y_class = np.zeros((self.batch_size, self.used_movie_indices.shape[0]))
         y_class[np.arange(y_class.shape[0]), sorted_args] = 1
         del sorted_args
