@@ -48,7 +48,11 @@ def get_data_generators(split_config, args):
         split_config['used_movie_indices'],
         split_config['train_ids'],
         args.train_queue_size,
-        args.train_n_processes
+        args.train_n_processes,
+        use_ratings=args.rating_head,
+        use_genres=args.genre_head,
+        use_class=args.class_head,
+        use_self_supervised=args.self_supervised_head
     )
 
     # f = h5py.File(train_gen.h5_path, 'r')
@@ -60,7 +64,11 @@ def get_data_generators(split_config, args):
         split_config['used_movie_indices'],
         split_config['test_ids'],
         args.test_queue_size,
-        args.test_n_processes
+        args.test_n_processes,
+        use_ratings=args.rating_head,
+        use_genres=args.genre_head,
+        use_class=args.class_head,
+        use_self_supervised=args.self_supervised_head
     )
 
     return train_gen, test_gen
