@@ -91,6 +91,7 @@ def initialize_wandb(split_config, args):
     wandb.init(project='zhaw_vt2', entity='lehl', group=wandb_group_name, config={
         'batch_size': args.batch_size,
         'n_epochs': args.n_epochs,
+        'seed': args.seed,
         'dataset': {
             'n_classes': split_config['n_classes'],
             'train': { 'shape': split_config['n_train'] },
