@@ -32,11 +32,12 @@ MODEL_CHECKPOINT_PATH = MODEL_PATH + '/checkpoints'
 TRAIN_SPLIT = 0.9
 TEST_SPLIT = 1 - TRAIN_SPLIT
 
-N_EPOCHS = 64
-BATCH_SIZE = 64
+N_EPOCHS = 256
+BATCH_SIZE = 16
 
-def get_data_generators(df_train, df_test, args):
+def get_data_generators(df_train, df_test, split_config, args):
     train_gen = DataFrameImageDataGenerator(df_train, args.batch_size,
+        n_classes=split_config['n_classes'],
         use_ratings=args.rating_head,
         use_genres=args.genre_head,
         use_class=args.class_head,
@@ -44,6 +45,7 @@ def get_data_generators(df_train, df_test, args):
     )
 
     test_gen = DataFrameImageDataGenerator(df_test, args.batch_size,
+        n_classes=split_config['n_classes'],
         use_ratings=args.rating_head,
         use_genres=args.genre_head,
         use_class=args.class_head,
@@ -133,7 +135,7 @@ def do_training(args):
 
     initialize_wandb(split_config, args)
 
-    train_gen, test_gen = get_data_generators(df_train, df_test, args)
+    train_gen, test_gen = get_data_generators(df_train, df_test, split_config, args)
 
     model = generate_model(split_config, args)
 

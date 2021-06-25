@@ -9,11 +9,15 @@ import tensorflow as tf
 # of https://medium.com/analytics-vidhya/write-your-own-custom-data-generator-for-tensorflow-keras-1252b64e41c3
 # 
 class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, df, batch_size, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True):
+    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True):
         self.df = df.copy()
         self.batch_size = batch_size
         self.input_size = input_size
         self.shuffle = shuffle
+
+        # Initial data shuffle
+        if self.shuffle:
+            self.shuffle_dataframe()
 
         self.use_ratings = use_ratings
         self.use_genres = use_genres
@@ -24,15 +28,18 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
         self.mean_rating = np.mean(df.groupby(['movielens_id']).mean()['mean_rating'])
 
         self.n = len(self.df)
-        self.n_class = df['movielens_id'].nunique()
+        self.n_class = n_classes
         self.n_genres = self.unique_genres.shape[0]
 
     def __len__(self):
         return self.n // self.batch_size
 
+    def shuffle_dataframe(self):
+        self.df = self.df.sample(frac=1).reset_index(drop=True)
+
     def on_epoch_end(self):
         if self.shuffle:
-            self.df = self.df.sample(frac=1).reset_index(drop=True)
+            self.shuffle_dataframe()
 
     def __getitem__(self, index):
         batches = self.df[index * self.batch_size:(index + 1) * self.batch_size]
@@ -44,19 +51,20 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
         image = tf.keras.preprocessing.image.load_img(path)
         image_arr = tf.keras.preprocessing.image.img_to_array(image)
 
+        # Image normalization
         return image_arr / 255.
 
-    def __get_data(self, batches):
-        X_batch = np.asarray([[self.__get_input(path)] for path in batches['full_path']])
+    def __get_data(self, df_batch):
+        X_batch = np.asarray([[self.__get_input(path)] for path in df_batch['full_path']])
         X_batch = X_batch.reshape((X_batch.shape[0],) + self.input_size)
 
         y_batch = dict()
 
         if self.use_class:
-            y_batch['class'] = np.asarray([self.__get_class_label(movie_id, self.n_class) for movie_id in batches['ascending_index']])
+            y_batch['class'] = np.asarray([self.__get_class_label(movie_id, self.n_class) for movie_id in df_batch['ascending_index']])
 
         if self.use_ratings:
-            y_rating = np.asarray(batches['mean_rating'])
+            y_rating = np.asarray(df_batch['mean_rating'])
 
             if np.isnan(y_rating).any():
                 y_rating[np.isnan(y_rating)] = self.mean_rating
@@ -64,7 +72,7 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
             y_batch['rating'] = y_rating
 
         if self.use_genres:
-            y_batch['genres'] = np.array([np.array([1 if genre in row else 0 for genre in self.unique_genres]) for row in np.char.split(batches['genres'].to_numpy().astype(str), sep='|')]).astype(np.byte)
+            y_batch['genres'] = np.array([np.array([1 if genre in row else 0 for genre in self.unique_genres]) for row in np.char.split(df_batch['genres'].to_numpy().astype(str), sep='|')]).astype(np.byte)
 
         if self.use_self_supervised:
             pass
