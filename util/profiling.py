@@ -11,7 +11,7 @@ from datetime import datetime
 # 
 # Run "snakeviz <profiling_file>" to view a visualization
 #
-def start_profiling(func, *args, print_stats=True, save_stats=True, **kwargs):
+def start_profiling(func, *args, print_stats=False, save_stats=True, **kwargs):
     pr = cProfile.Profile()
     pr.enable()
     func(*args, **kwargs)
@@ -24,9 +24,6 @@ def start_profiling(func, *args, print_stats=True, save_stats=True, **kwargs):
         stats.print_stats()
 
     if save_stats:
-        if not os.path.exists('_profiling_dumps'):
-            os.makedirs('_profiling_dumps')
-
         time_stamp = datetime.now().strftime('%Y_%m_%d__%H%M%S')
         file_name = '_profiling_dumps/' + '_'.join([time_stamp, func.__name__ + '.prof'])
         stats.dump_stats(file_name)
