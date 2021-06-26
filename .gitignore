@@ -3,6 +3,7 @@ datasets/*
 clipped/*
 wandb/*
 trained_models/*
+_profiling_dumps/*
 *.png
 
 # Byte-compiled / optimized / DLL files
