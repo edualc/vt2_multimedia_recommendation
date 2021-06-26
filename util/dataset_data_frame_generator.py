@@ -76,7 +76,7 @@ def _gdf__read_metadata():
 
     return df, unique_genres, unique_movie_ids
 
-def generate_data_frame(args):
+def generate_data_frame():
     csv_file_path = ''.join([
         config('KEYFRAME_DATASET_GENERATOR_PATH'),
         'dataset_data_frame.csv'

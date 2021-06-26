@@ -9,11 +9,12 @@ import tensorflow as tf
 # of https://medium.com/analytics-vidhya/write-your-own-custom-data-generator-for-tensorflow-keras-1252b64e41c3
 # 
 class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True):
+    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True, do_inference_only=False):
         self.df = df.copy()
         self.batch_size = batch_size
         self.input_size = input_size
         self.shuffle = shuffle
+        self.do_inference_only = do_inference_only
 
         # Initial data shuffle
         if self.shuffle:
@@ -47,16 +48,12 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
 
         return X, y
 
-    def __get_input(self, path):
-        image = tf.keras.preprocessing.image.load_img(path)
-        image_arr = tf.keras.preprocessing.image.img_to_array(image)
-
-        # Image normalization
-        return image_arr / 255.
-
     def __get_data(self, df_batch):
-        X_batch = np.asarray([[self.__get_input(path)] for path in df_batch['full_path']])
+        X_batch = np.asarray([[load_image(path)] for path in df_batch['full_path']])
         X_batch = X_batch.reshape((X_batch.shape[0],) + self.input_size)
+
+        if self.do_inference_only:
+            return X_batch, None
 
         y_batch = dict()
 
@@ -82,3 +79,9 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
     def __get_class_label(self, label, num_classes):
         return tf.keras.utils.to_categorical(label, num_classes=num_classes)
 
+def load_image(path):
+    image = tf.keras.preprocessing.image.load_img(path)
+    image_arr = tf.keras.preprocessing.image.img_to_array(image)
+
+    # Image normalization
+    return image_arr / 255.

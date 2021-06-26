@@ -55,7 +55,7 @@ def get_data_generators(df_train, df_test, split_config, args):
     return train_gen, test_gen
 
 def generate_split(args):
-    df = generate_data_frame(args)
+    df = generate_data_frame()
 
     unique_genres = np.sort(np.unique(np.array([item for sublist in [genre_list.split('|') for genre_list in list(df.genres.unique())] for item in sublist])))
 
