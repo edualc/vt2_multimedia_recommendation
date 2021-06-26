@@ -52,6 +52,9 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
 
         return X, y
 
+    # lehl@2021-06-21: Variant with using joblib according to stackoverflow:
+    # --> https://stackoverflow.com/questions/33778155/python-parallelized-image-reading-and-preprocessing-using-multiprocessing
+    #
     def parallel_generate_X_batch(self, df_batch):
         X_batch = np.asarray(Parallel(n_jobs=16)(delayed(load_image)(path) for path in df_batch['full_path']))
 
