@@ -41,7 +41,8 @@ def get_data_generators(df_train, df_test, split_config, args):
         use_ratings=args.rating_head,
         use_genres=args.genre_head,
         use_class=args.class_head,
-        use_self_supervised=args.self_supervised_head
+        use_self_supervised=args.self_supervised_head,
+        do_async=args.do_async
     )
 
     test_gen = DataFrameImageDataGenerator(df_test, args.batch_size,
@@ -49,7 +50,8 @@ def get_data_generators(df_train, df_test, split_config, args):
         use_ratings=args.rating_head,
         use_genres=args.genre_head,
         use_class=args.class_head,
-        use_self_supervised=args.self_supervised_head
+        use_self_supervised=args.self_supervised_head,
+        do_async=args.do_async
     )
 
     return train_gen, test_gen
@@ -108,6 +110,8 @@ def train_model(model, train_gen, test_gen, args):
     model.fit(
         train_gen,
         epochs=args.n_epochs,
+        steps_per_epoch=10,
+        validation_steps=10,
         validation_data=test_gen,
         verbose=1,
         callbacks=[
@@ -170,6 +174,18 @@ if __name__ == '__main__':
     parser.add_argument('--no_self_supervised_head', dest='self_supervised_head', action='store_false')
     parser.set_defaults(self_supervised_head=False)
 
+    parser.add_argument('--async', dest='do_async', action='store_true')
+    parser.add_argument('--no_async', dest='do_async', action='store_false')
+    parser.set_defaults(do_async=False)
+
+    parser.add_argument('--profiling', dest='do_profiling', action='store_true')
+    parser.add_argument('--no_profiling', dest='do_profiling', action='store_false')
+    parser.set_defaults(do_profiling=False)
+
     args = parser.parse_args()
 
-    do_training(args)
+    if args.do_profiling:
+        from util.profiling import start_profiling
+        start_profiling(do_training, args)
+    else:
+        do_training(args)

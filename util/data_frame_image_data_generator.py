@@ -5,16 +5,20 @@ from decouple import config
 
 import tensorflow as tf
 
+from joblib import Parallel, delayed
+# import asyncio
+
 # lehl@2021-06-24: "Classic" Keras Data Generator, leaning on the implementation
 # of https://medium.com/analytics-vidhya/write-your-own-custom-data-generator-for-tensorflow-keras-1252b64e41c3
 # 
 class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True, do_inference_only=False):
+    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True, do_inference_only=False, do_async=False):
         self.df = df.copy()
         self.batch_size = batch_size
         self.input_size = input_size
         self.shuffle = shuffle
         self.do_inference_only = do_inference_only
+        self.do_async = do_async
 
         # Initial data shuffle
         if self.shuffle:
@@ -48,8 +52,25 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
 
         return X, y
 
+    def parallel_generate_X_batch(self, df_batch):
+        X_batch = np.asarray(Parallel(n_jobs=16)(delayed(load_image)(path) for path in df_batch['full_path']))
+
+        return X_batch
+
+    # async def async_generate_X_batch(self, df_batch):
+    #     tasks = [async_load_image(path) for path in df_batch['full_path']]
+    #     return np.asarray(await asyncio.gather(*tasks))
+
+    def generate_X_batch(self, df_batch):
+        return np.asarray([[load_image(path)] for path in df_batch['full_path']])
+
     def __get_data(self, df_batch):
-        X_batch = np.asarray([[load_image(path)] for path in df_batch['full_path']])
+        if self.do_async:
+            X_batch = self.parallel_generate_X_batch(df_batch)
+            # X_batch = asyncio.run(self.async_generate_X_batch(df_batch))
+        else:
+            X_batch = self.generate_X_batch(df_batch)
+        
         X_batch = X_batch.reshape((X_batch.shape[0],) + self.input_size)
 
         if self.do_inference_only:
@@ -85,3 +106,10 @@ def load_image(path):
 
     # Image normalization
     return image_arr / 255.
+
+# async def async_load_image(path):
+#     image = tf.keras.preprocessing.image.load_img(path)
+#     image_arr = tf.keras.preprocessing.image.img_to_array(image)
+
+#     # Image normalization
+#     return image_arr / 255.
