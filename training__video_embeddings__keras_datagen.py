@@ -110,8 +110,6 @@ def train_model(model, train_gen, test_gen, args):
     model.fit(
         train_gen,
         epochs=args.n_epochs,
-        steps_per_epoch=10,
-        validation_steps=10,
         validation_data=test_gen,
         verbose=1,
         callbacks=[
