@@ -2,11 +2,9 @@ import os
 import numpy as np
 import pandas as pd
 from decouple import config
+from joblib import Parallel, delayed
 
 import tensorflow as tf
-
-from joblib import Parallel, delayed
-# import asyncio
 
 # lehl@2021-06-24: "Classic" Keras Data Generator, leaning on the implementation
 # of https://medium.com/analytics-vidhya/write-your-own-custom-data-generator-for-tensorflow-keras-1252b64e41c3
@@ -61,17 +59,12 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
 
         return X_batch
 
-    # async def async_generate_X_batch(self, df_batch):
-    #     tasks = [async_load_image(path) for path in df_batch['full_path']]
-    #     return np.asarray(await asyncio.gather(*tasks))
-
     def generate_X_batch(self, df_batch):
         return np.asarray([[load_image(path)] for path in df_batch['full_path']])
 
     def __get_data(self, df_batch):
         if self.do_parallel:
             X_batch = self.parallel_generate_X_batch(df_batch)
-            # X_batch = asyncio.run(self.async_generate_X_batch(df_batch))
         else:
             X_batch = self.generate_X_batch(df_batch)
         
@@ -110,10 +103,3 @@ def load_image(path):
 
     # Image normalization
     return image_arr / 255.
-
-# async def async_load_image(path):
-#     image = tf.keras.preprocessing.image.load_img(path)
-#     image_arr = tf.keras.preprocessing.image.img_to_array(image)
-
-#     # Image normalization
-#     return image_arr / 255.

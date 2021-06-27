@@ -3,8 +3,6 @@ import cProfile
 import pstats
 from datetime import datetime
 
-# import asyncio
-
 # lehl@2021-06-26: Profiling function built, inspired by the 
 # mCoding video about profiling in Python:
 # --> https://www.youtube.com/watch?v=m_a0fN48Alw
