@@ -10,6 +10,8 @@ from models.embedding_models import keyframe_embedding_model
 from util.data_frame_image_data_generator import DataFrameImageDataGenerator, load_image
 from util.dataset_data_frame_generator import generate_data_frame
 
+from joblib import Parallel, delayed
+
 def setup_argument_parser():
     parser = argparse.ArgumentParser(description='VT2_VideoEmbeddingGenerator')
 
@@ -80,16 +82,15 @@ def generate_embeddings(args):
     # gen = create_data_generator(df, args)
 
     embeddings_dict = {
-        256: np.zeros((df.ascending_index.nunique(), 256))
-        # 512: np.zeros((df.ascending_index.nunique(), 512)),
-        # 1024: np.zeros((df.ascending_index.nunique(), 1024))
+        256: np.zeros((df.ascending_index.nunique(), 256)),
+        512: np.zeros((df.ascending_index.nunique(), 512)),
+        1024: np.zeros((df.ascending_index.nunique(), 1024))
     }
 
     for ascending_index in tqdm(np.sort(df.ascending_index.unique())):
         df_batch = df[df.ascending_index == ascending_index]
 
-        X_batch = np.asarray([[load_image(path)] for path in df_batch['full_path']])
-        X_batch = X_batch.reshape((X_batch.shape[0],) + X_batch.shape[2:])
+        X_batch = np.asarray(Parallel(n_jobs=64)(delayed(load_image)(path) for path in df_batch['full_path']))
 
         for model in embedding_models:
             dimension = model.output.shape[1]
@@ -97,7 +98,7 @@ def generate_embeddings(args):
 
             embeddings_dict[dimension][ascending_index, :] = np.mean(y_pred, axis=0)
 
-    embeddings_path = args.embedding_path + '/' + datetime.now().strftime('%Y_%m_%d__%H%M%S') + 'embeddings.h5'
+    embeddings_path = args.embedding_path + '/' + datetime.now().strftime('%Y_%m_%d__%H%M%S') + '_embeddings.h5'
 
     import code; code.interact(local=dict(globals(), **locals()))
     
@@ -105,9 +106,11 @@ def generate_embeddings(args):
         for key in embeddings_dict.keys():
             f.create_dataset(key, data=embeddings_dict[key])
 
-    # for model in create_embedding_models(args):
-    #     embedding_dim = str(model.output.shape[1])
-    #     print(f'Processing {embedding_dim}-dimensional embedding model in {n_batches} batches...')
+    for model in create_embedding_models(args):
+        embedding_dim = model.output.shape[1]
+        np.save(args.embedding_path + '/' + str(embedding_dim) + 'd_embeddings.npy', embeddings_dict[embedding_dim])
+
+        # print(f'Processing {embedding_dim}-dimensional embedding model in {n_batches} batches...')
 
 
 
