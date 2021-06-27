@@ -12,13 +12,14 @@ from joblib import Parallel, delayed
 # of https://medium.com/analytics-vidhya/write-your-own-custom-data-generator-for-tensorflow-keras-1252b64e41c3
 # 
 class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True, do_inference_only=False, do_async=False):
+    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True, do_inference_only=False, do_parallel=False, n_parallel=16):
         self.df = df.copy()
         self.batch_size = batch_size
         self.input_size = input_size
         self.shuffle = shuffle
         self.do_inference_only = do_inference_only
-        self.do_async = do_async
+        self.do_parallel = do_parallel
+        self.n_parallel = n_parallel
 
         # Initial data shuffle
         if self.shuffle:
@@ -56,7 +57,7 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
     # --> https://stackoverflow.com/questions/33778155/python-parallelized-image-reading-and-preprocessing-using-multiprocessing
     #
     def parallel_generate_X_batch(self, df_batch):
-        X_batch = np.asarray(Parallel(n_jobs=16)(delayed(load_image)(path) for path in df_batch['full_path']))
+        X_batch = np.asarray(Parallel(n_jobs=self.n_parallel)(delayed(load_image)(path) for path in df_batch['full_path']))
 
         return X_batch
 
@@ -68,7 +69,7 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
         return np.asarray([[load_image(path)] for path in df_batch['full_path']])
 
     def __get_data(self, df_batch):
-        if self.do_async:
+        if self.do_parallel:
             X_batch = self.parallel_generate_X_batch(df_batch)
             # X_batch = asyncio.run(self.async_generate_X_batch(df_batch))
         else:

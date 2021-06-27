@@ -42,7 +42,8 @@ def get_data_generators(df_train, df_test, split_config, args):
         use_genres=args.genre_head,
         use_class=args.class_head,
         use_self_supervised=args.self_supervised_head,
-        do_async=args.do_async
+        do_parallel=args.do_parallel,
+        n_parallel=args.n_parallel
     )
 
     test_gen = DataFrameImageDataGenerator(df_test, args.batch_size,
@@ -51,7 +52,8 @@ def get_data_generators(df_train, df_test, split_config, args):
         use_genres=args.genre_head,
         use_class=args.class_head,
         use_self_supervised=args.self_supervised_head,
-        do_async=args.do_async
+        do_parallel=args.do_parallel,
+        n_parallel=args.n_parallel
     )
 
     return train_gen, test_gen
@@ -172,9 +174,10 @@ if __name__ == '__main__':
     parser.add_argument('--no_self_supervised_head', dest='self_supervised_head', action='store_false')
     parser.set_defaults(self_supervised_head=False)
 
-    parser.add_argument('--async', dest='do_async', action='store_true')
-    parser.add_argument('--no_async', dest='do_async', action='store_false')
-    parser.set_defaults(do_async=False)
+    parser.add_argument('--parallel_datagen', dest='do_parallel', action='store_true')
+    parser.add_argument('--no_parallel_datagen', dest='do_parallel', action='store_false')
+    parser.set_defaults(do_parallel=False)
+    parser.add_argument('--n_parallel', type=int, default=16, help='Number of parallel joblib workers.')
 
     parser.add_argument('--profiling', dest='do_profiling', action='store_true')
     parser.add_argument('--no_profiling', dest='do_profiling', action='store_false')

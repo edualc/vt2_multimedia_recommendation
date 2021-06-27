@@ -18,10 +18,11 @@ def start_profiling(func, *args, print_stats=False, save_stats=True, **kwargs):
     pr.disable()
 
     stats = pstats.Stats(pr)
-    stats.sort_stats(pstats.SortKey.TIME)
+    stats.sort_stats('time')
+    # stats.sort_stats(pstats.SortKey.TIME) #py3.7+
 
     if print_stats:
-        stats.print_stats()
+        stats.print_stats(16)
 
     if save_stats:
         time_stamp = datetime.now().strftime('%Y_%m_%d__%H%M%S')
