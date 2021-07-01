@@ -12,6 +12,7 @@ from util.paths import ensure_dir
 # from util.data_generator__parallel import ParallelH5DataGenerator
 from util.data_frame_image_data_generator import DataFrameImageDataGenerator
 from util.dataset_data_frame_generator import generate_data_frame
+from util.random_seed import random_seed_default
 
 from models.embedding_models import keyframe_embedding_model
 from tqdm import tqdm
@@ -144,9 +145,6 @@ def do_training(args):
     model = generate_model(split_config, args)
 
     train_model(model, train_gen, test_gen, args)
-
-def random_seed_default():
-    return int(np.iinfo(np.int32).max * np.random.rand(1))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='VT2_VideoEmbedding')
