@@ -5,6 +5,7 @@ wandb/*
 trained_models/*
 _profiling_dumps/*
 *.png
+*.npy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
