@@ -12,6 +12,10 @@ from util.dataset_data_frame_generator import generate_data_frame
 
 from joblib import Parallel, delayed
 
+# Example Call:
+# 
+# python3 generate_movie_embeddings.py --model_path trained_models/2021_06_27__152733/checkpoints/best.hdf5 --n_classes 13606 --no_self_supervised_head --embedding_path trained_models/2021_06_27__152733
+
 def setup_argument_parser():
     parser = argparse.ArgumentParser(description='VT2_VideoEmbeddingGenerator')
 
@@ -90,7 +94,7 @@ def generate_embeddings(args):
     for ascending_index in tqdm(np.sort(df.ascending_index.unique())):
         df_batch = df[df.ascending_index == ascending_index]
 
-        X_batch = np.asarray(Parallel(n_jobs=64)(delayed(load_image)(path) for path in df_batch['full_path']))
+        X_batch = np.asarray(Parallel(n_jobs=32)(delayed(load_image)(path) for path in df_batch['full_path']))
 
         for model in embedding_models:
             dimension = model.output.shape[1]
