@@ -79,11 +79,6 @@ def generate_embeddings(args):
     df = generate_data_frame()
     embedding_models = create_embedding_models(args)
 
-    # batch_size = args.batch_size
-    # n_batches = np.ceil(df.size / batch_size)
-
-    # gen = create_data_generator(df, args)
-
     embeddings_dict = {
         256: np.zeros((df.ascending_index.nunique(), 256)),
         512: np.zeros((df.ascending_index.nunique(), 512)),
@@ -103,8 +98,6 @@ def generate_embeddings(args):
 
     embeddings_path = args.embedding_path + '/' + datetime.now().strftime('%Y_%m_%d__%H%M%S') + '_embeddings.h5'
 
-    # import code; code.interact(local=dict(globals(), **locals()))
-    
     # with h5py.File(embeddings_path, 'w') as f:
     #     for key in embeddings_dict.keys():
     #         f.create_dataset(key, data=embeddings_dict[key])
@@ -112,31 +105,6 @@ def generate_embeddings(args):
     for model in create_embedding_models(args):
         embedding_dim = model.output.shape[1]
         np.save(args.embedding_path + '/' + str(embedding_dim) + 'd_embeddings.npy', embeddings_dict[embedding_dim])
-
-        # print(f'Processing {embedding_dim}-dimensional embedding model in {n_batches} batches...')
-
-
-
-
-    #     # embeddings_path = args.embedding_path + '/' + embedding_dim + '_embeddings.h5'
-    #     # f = h5py.File(embeddings_path, 'w')
-
-    #     for batch_index in tqdm(np.arange(n_batches), desc=f'Generating {embedding_dim}d embeddings...'):
-    #         start_i = int(batch_index*batch_size)
-    #         end_i = int((batch_index+1)*batch_size)
-
-    #         X_batch = np.asarray([[load_image(path)] for path in df[start_i:end_i]['full_path']])
-    #         X_batch = X_batch.reshape((X_batch.shape[0],) + X_batch.shape[2:])
-
-    #         y_pred = model.predict(X_batch)
-
-    #         # if batch_index == 0:
-    #         #     f.create_dataset(embedding_dim, data=y_pred, compression='gzip', maxshape=(None, int(embedding_dim)))
-    #         # else:
-    #         #     f[embedding_dim].resize((f[embedding_dim].shape[0] + y_pred.shape[0]), axis=0)
-    #         #     f[embedding_dim][-y_pred.shape[0]:, :] = y_pred
-
-    #     f.close()
 
 if __name__ == '__main__':
     parser = setup_argument_parser()
