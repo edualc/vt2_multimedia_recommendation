@@ -103,11 +103,11 @@ def generate_embeddings(args):
 
     embeddings_path = args.embedding_path + '/' + datetime.now().strftime('%Y_%m_%d__%H%M%S') + '_embeddings.h5'
 
-    import code; code.interact(local=dict(globals(), **locals()))
+    # import code; code.interact(local=dict(globals(), **locals()))
     
-    with h5py.File(embeddings_path, 'w') as f:
-        for key in embeddings_dict.keys():
-            f.create_dataset(key, data=embeddings_dict[key])
+    # with h5py.File(embeddings_path, 'w') as f:
+    #     for key in embeddings_dict.keys():
+    #         f.create_dataset(key, data=embeddings_dict[key])
 
     for model in create_embedding_models(args):
         embedding_dim = model.output.shape[1]
