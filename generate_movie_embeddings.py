@@ -78,7 +78,6 @@ def create_data_generator(df, args):
 def generate_embeddings(args):
     df = generate_data_frame()
     embedding_models = create_embedding_models(args)
-    embedding_models = [embedding_models[0]]
 
     # batch_size = args.batch_size
     # n_batches = np.ceil(df.size / batch_size)
