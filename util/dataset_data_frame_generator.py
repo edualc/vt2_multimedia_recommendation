@@ -20,7 +20,7 @@ def _gdf__dirs_to_check(path):
 
 def _gdf__next_keyframe_path(directory, file, keyframe_id):
     def next_path(file, keyframe_id):
-        return file.split('_')[0] + '_' + keyframe_id + '.' + file.split('.')[1]
+        return '_'.join(file.split('_')[:-1]) + '_' + keyframe_id + '.' + file.split('.')[1]
     
     next_keyframe_id = f"{int(keyframe_id) + 1:05}"
     next_full_path = next_path(file, next_keyframe_id)

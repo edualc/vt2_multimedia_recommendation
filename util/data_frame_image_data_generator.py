@@ -54,13 +54,13 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
     # lehl@2021-06-21: Variant with using joblib according to stackoverflow:
     # --> https://stackoverflow.com/questions/33778155/python-parallelized-image-reading-and-preprocessing-using-multiprocessing
     #
-    def parallel_generate_X_batch(self, df_batch):
-        X_batch = np.asarray(Parallel(n_jobs=self.n_parallel)(delayed(load_image)(path) for path in df_batch['full_path']))
+    def parallel_generate_X_batch(self, df_batch, dataframe_key='full_path'):
+        X_batch = np.asarray(Parallel(n_jobs=self.n_parallel)(delayed(load_image)(path) for path in df_batch[dataframe_key]))
 
         return X_batch
 
-    def generate_X_batch(self, df_batch):
-        return np.asarray([[load_image(path)] for path in df_batch['full_path']])
+    def generate_X_batch(self, df_batch, dataframe_key='full_path'):
+        return np.asarray([[load_image(path)] for path in df_batch[dataframe_key]])
 
     def __get_data(self, df_batch):
         if self.do_parallel:
@@ -90,7 +90,15 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
             y_batch['genres'] = np.array([np.array([1 if genre in row else 0 for genre in self.unique_genres]) for row in np.char.split(df_batch['genres'].to_numpy().astype(str), sep='|')]).astype(np.byte)
 
         if self.use_self_supervised:
-            pass
+
+            if self.do_parallel:
+                y_self_supervised = self.parallel_generate_X_batch(df_batch, dataframe_key='next_full_path')
+            else:
+                y_self_supervised = self.generate_X_batch(df_batch, dataframe_key='next_full_path')
+            
+            y_self_supervised = y_self_supervised.reshape((y_self_supervised.shape[0],) + self.input_size)
+
+            y_batch['self_supervised'] = y_self_supervised
 
         return X_batch, y_batch
 

@@ -153,6 +153,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--n_epochs', type=int, default=N_EPOCHS, help='Number of epochs to train')
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size for training and validation')
+    parser.add_argument('--learning_rate', type=float, default=3e-4, help='Learning rate used in the network')
 
     parser.add_argument('--seed', type=int, default=random_seed_default(), help='Seed used for train test split')
 
@@ -170,7 +171,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--self_supervised_head', dest='self_supervised_head', action='store_true')
     parser.add_argument('--no_self_supervised_head', dest='self_supervised_head', action='store_false')
-    parser.set_defaults(self_supervised_head=False)
+    parser.set_defaults(self_supervised_head=True)
 
     parser.add_argument('--parallel_datagen', dest='do_parallel', action='store_true')
     parser.add_argument('--no_parallel_datagen', dest='do_parallel', action='store_false')

@@ -1,12 +1,14 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.applications import MobileNetV3Small
 
-def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3), rating_head=True, genre_head=True, class_head=True, self_supervised_head=True):
+def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3), learning_rate=3e-4, rating_head=True, genre_head=True, class_head=True, self_supervised_head=True):
     
     keras_loss_functions = dict()
     keras_metrics = dict()
+    keras_loss_weights = dict()
     network_heads = list()
     
     input_layer = keras.Input(shape=input_shape)
@@ -35,6 +37,7 @@ def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3),
 
         keras_loss_functions['rating'] = keras.losses.MeanSquaredError()
         keras_metrics['rating'] = keras.metrics.MeanSquaredError()
+        keras_loss_weights['rating'] = 1
         network_heads.append(rating_output)
 
     # OUTPUT: Genres - Can be multiple, so softmax does not make sense
@@ -48,6 +51,7 @@ def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3),
 
         keras_loss_functions['genres'] = keras.losses.BinaryCrossentropy()
         keras_metrics['genres'] = keras.metrics.CategoricalAccuracy()
+        keras_loss_weights['genres'] = 1
         network_heads.append(genre_output)
 
     # OUTPUT: Trailer Class - Can be only one, softmax!
@@ -58,17 +62,25 @@ def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3),
 
         keras_loss_functions['class'] = keras.losses.CategoricalCrossentropy()
         keras_metrics['class'] = keras.metrics.CategoricalAccuracy()
+        keras_loss_weights['class'] = 1
         network_heads.append(class_output)
 
     if self_supervised_head:
-        pass
+        self_supervised_output = layers.Dense(np.prod(input_shape))(last_embedding_layer)
+        self_supervised_output = layers.Reshape(input_shape, name='self_supervised')(self_supervised_output)
+
+        keras_loss_functions['self_supervised'] = keras.losses.MeanSquaredError()
+        keras_metrics['self_supervised'] = keras.metrics.MeanSquaredError()
+        keras_loss_weights['self_supervised'] = 1
+        network_heads.append(self_supervised_output)
 
     model = keras.Model(inputs=input_layer, outputs=network_heads)
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(3e-4),
+        optimizer=tf.keras.optimizers.Adam(learning_rate),
         loss=keras_loss_functions,
-        metrics=keras_metrics
+        metrics=keras_metrics,
+        loss_weights=keras_loss_weights
     )
 
     model.summary()
