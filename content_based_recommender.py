@@ -1,10 +1,19 @@
+import argparse
 import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from tqdm import tqdm
+from datetime import datetime
+from decouple import config
 
 from util.dataset_data_frame_generator import generate_data_frame
 from util.random_seed import random_seed_default
 
+# lehl@2021-07-01: Some ideas taken from these coursera pages:
+# - https://www.coursera.org/lecture/machine-learning-applications-big-data/content-based-recommender-systems-fyK36
+# - https://www.coursera.org/lecture/machine-learning-with-python/content-based-recommender-systems-jPrfc
+#
 class ContentBasedRecommender():
     def __init__(self, df, embeddings, seed=None, test_ratio=0.1):
         self.df = df
@@ -42,7 +51,7 @@ class ContentBasedRecommender():
 
     def embedding_similarities(self):
         if self.__embedding_similarities is None:
-            self.__embedding_similarities = cosine_similarity(embeddings)
+            self.__embedding_similarities = cosine_similarity(self.embeddings)
 
             # Setting the similarity of each embedding to itself to 0,
             # to simplify the selection similar items to exclude itself
@@ -95,63 +104,88 @@ class ContentBasedRecommender():
         user_item_rating_tuples = np.vstack((user_ids, np.repeat(int(ascending_index), user_ids.shape[0]), ratings))
         return user_item_rating_tuples
 
+def preprocess_dataframe():
+    # df_movies = generate_data_frame()
+    # df_movies = df_movies[['movielens_id','mean_rating','genres','ascending_index']] \
+    #                 .drop_duplicates() \
+    #                 .sort_values('ascending_index') \
+    #                 .reset_index(drop=True)
 
+    # df_train = pd.read_csv('/mnt/all1/ml20m_yt/ml20m/crossvalidation/train_1.dat', header=None)
+    # df_train.columns = ['user_id', 'movielens_id', 'rating']
+    # df_test = pd.read_csv('/mnt/all1/ml20m_yt/ml20m/crossvalidation/test_1.dat', header=None)
+    # df_test.columns = ['user_id', 'movielens_id', 'rating']
+    # df_ratings = df_train.append(df_test)
+    # df_ratings = df_ratings[df_ratings.movielens_id.isin(df_movies.movielens_id.unique())]
 
-# lehl@2021-07-01: Some ideas taken from these coursera pages:
-# - https://www.coursera.org/lecture/machine-learning-applications-big-data/content-based-recommender-systems-fyK36
-# - https://www.coursera.org/lecture/machine-learning-with-python/content-based-recommender-systems-jPrfc
-#
+    # df_merge = pd.merge(df_ratings, df_movies, on='movielens_id', how='inner')
+    # df_merge = df_merge[['user_id','movielens_id','ascending_index','rating']]
 
-df_movies = generate_data_frame()
-df_movies = df_movies[['movielens_id','mean_rating','genres','ascending_index']] \
-                .drop_duplicates() \
-                .sort_values('ascending_index') \
-                .reset_index(drop=True)
+    df_merge = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'),'ratings_data_frame.csv']))
+    return df_merge
 
-df_train = pd.read_csv('/mnt/all1/ml20m_yt/ml20m/crossvalidation/train_1.dat', header=None)
-df_train.columns = ['user_id', 'movielens_id', 'rating']
-df_test = pd.read_csv('/mnt/all1/ml20m_yt/ml20m/crossvalidation/test_1.dat', header=None)
-df_test.columns = ['user_id', 'movielens_id', 'rating']
-df_ratings = df_train.append(df_test)
-df_ratings = df_ratings[df_ratings.movielens_id.isin(df_movies.movielens_id.unique())]
+def run_recommender(args):
+    df = preprocess_dataframe()
+    embeddings = np.load(args.embedding_path)
+    # embeddings = np.random.rand(embeddings.shape[0], embeddings.shape[1])
 
-df_merge = pd.merge(df_ratings, df_movies, on='movielens_id', how='inner')
-df_merge = df_merge[['user_id','movielens_id','ascending_index','rating']]
+    recommender = ContentBasedRecommender(df, embeddings)
 
-embeddings = np.load('trained_models/2021_06_25__103459/256d_embeddings.npy')
-embeddings = np.random.rand(embeddings.shape[0], embeddings.shape[1])
+    # import time
+    predicted_ratings = None
 
-recommender = ContentBasedRecommender(df_merge, embeddings)
+    for asc_id in tqdm(np.sort(recommender.df_test.ascending_index.unique())):
+        # start_time = time.time()
+        new_ratings = recommender.generate_ratings(asc_id)
 
+        if predicted_ratings is None:
+            predicted_ratings = new_ratings
+        else:
+            predicted_ratings = np.append(predicted_ratings, new_ratings, axis=1)
+        # print(f"[{predicted_ratings.shape}] Generating ratings for item {asc_id} took {time.time() - start_time}s.")
 
-import time
-from tqdm import tqdm
-predicted_ratings = None
+    # import code; code.interact(local=dict(globals(), **locals()))
 
-for asc_id in tqdm(np.sort(recommender.df_test.ascending_index.unique())):
-    start_time = time.time()
+    file_name = '____'.join([
+        datetime.now().strftime('%Y_%m_%d__%H%M%S'),
+        args.model_timestamp,
+        'seed' + str(recommender.seed),
+        f"{embeddings.shape[1]}d"
+    ])
 
-    new_ratings = recommender.generate_ratings(asc_id)
+    np.save(file_name + '.npy', predicted_ratings)
 
-    if predicted_ratings is None:
-        predicted_ratings = new_ratings
-    else:
-        predicted_ratings = np.append(predicted_ratings, new_ratings, axis=1)
+    df_pred = pd.DataFrame(predicted_ratings).transpose()
+    df_pred.columns = ['user_id','ascending_index','predicted_rating']
+    df_pred_merged = recommender.df_test.merge(df_pred, on=['user_id','ascending_index'])
 
-    # print(f"[{predicted_ratings.shape}] Generating ratings for item {asc_id} took {time.time() - start_time}s.")
+    mse = mean_squared_error(df_pred_merged['rating'], df_pred_merged['predicted_rating'])
+    # 0.927 MSE @ Random
+    # 
+    rmse = mean_squared_error(df_pred_merged['rating'], df_pred_merged['predicted_rating'], squared=False)
+    # 0.??? RMSE @ Random
 
-import code; code.interact(local=dict(globals(), **locals()))
+    mae = mean_absolute_error(df_pred_merged['rating'], df_pred_merged['predicted_rating'])
+    # 0.751 MAE @ Random
 
-np.save('20210702_random_embeddings__seed' + str(recommender.seed) + '.npy', predicted_ratings)
+    print(f"[{embeddings.shape[1]}d-{args.model_timestamp}]\t\tRMSE:\t{rmse}\tMSE:\t{mse}\tMAE:\t{mae}")
+    df_pred_merged.to_csv(file_name + '.csv', header=True, index=None)
 
-df_pred = pd.DataFrame(predicted_ratings).transpose()
-df_pred.columns = ['user_id','ascending_index','predicted_rating']
-df_pred_merged = recommender.df_test.merge(df_pred, on=['user_id','ascending_index'])
+if __name__ == '__main__':
 
-mean_squared_error = sklearn.metrics.mean_squared_error(df_pred_merged['rating'],df_pred_merged['predicted_rating'])
-# 0.927 MSE
+    parser = argparse.ArgumentParser()
 
-mean_absolute_error = sklearn.metrics.mean_absolute_error(df_pred_merged['rating'],df_pred_merged['predicted_rating'])
-# 0.751 MAE
+    parser.add_argument('--embedding_path', type=str, help='path where the embeddings are stored, expects numpy file (.npy)')
+    parser.add_argument('--model_timestamp', type=str)
 
-df_pred_merged.to_csv('20210702_random_embeddings__seed' + str(recommender.seed) + '.csv', header=True, index=None)
+    args = parser.parse_args()
+    run_recommender(args)
+
+    # import code; code.interact(local=dict(globals(), **locals()))
+
+# --embedding_path 'trained_models/2021_06_25__103459/256d_embeddings.npy'
+# --model_timestamp '2021_06_25__103459'
+
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152733-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152733
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152726-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152726
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152725-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152725
