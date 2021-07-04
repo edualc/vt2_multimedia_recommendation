@@ -1,0 +1,9 @@
+## LibFM Conversion
+
+The libFM library needs a specific input, which can be generated using their script (see [http://www.libfm.org/libfm-1.42.manual.pdf](http://www.libfm.org/libfm-1.42.manual.pdf)).
+
+The command used it ```./triple_format_to_libfm.pl -in /mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_2__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_2__libfm.dat -target 2 -separator ","```
+
+```
+./triple_format_to_libfm.pl -in /mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_1__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_1__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_2__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_2__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_3__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_3__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_4__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_4__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_5__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_5__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_6__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_6__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_7__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_7__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_8__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_8__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_9__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_9__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_train_10__libfm.dat,/mnt/all1/ml20m_yt/ml20m/10fold_cv/ml20m_test_10__libfm.dat -target 2 -separator ","
+```

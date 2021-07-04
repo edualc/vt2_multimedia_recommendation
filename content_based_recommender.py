@@ -15,9 +15,10 @@ from util.random_seed import random_seed_default
 # - https://www.coursera.org/lecture/machine-learning-with-python/content-based-recommender-systems-jPrfc
 #
 class ContentBasedRecommender():
-    def __init__(self, df, embeddings, seed=None, test_ratio=0.1):
-        self.df = df
+    def __init__(self, embeddings, split_num=1, seed=None, test_ratio=0.1):
+        # self.df = df
         self.embeddings = embeddings
+        self.split_num = split_num
         self.seed = seed if seed else random_seed_default()
         self.test_ratio = test_ratio
 
@@ -43,11 +44,17 @@ class ContentBasedRecommender():
                                        .apply(np.array)
 
     def initialize_data_split(self):
-        rng = np.random.RandomState(self.seed)
+        # rng = np.random.RandomState(self.seed)
 
-        test_mask = rng.rand(len(self.df)) <= self.test_ratio
-        self.df_train = self.df[~test_mask]
-        self.df_test = self.df[test_mask]
+        # test_mask = rng.rand(len(self.df)) <= self.test_ratio
+        # self.df_train = self.df[~test_mask]
+        # self.df_test = self.df[test_mask]
+
+        train_path = config('CROSSVALIDATION_PATH') + 'ml20m_train_' + str(self.split_num) + '.csv'
+        test_path = config('CROSSVALIDATION_PATH') + 'ml20m_test_' + str(self.split_num) + '.csv'
+
+        self.df_train = pd.read_csv(train_path)
+        self.df_test = pd.read_csv(test_path)
 
     def embedding_similarities(self):
         if self.__embedding_similarities is None:
@@ -125,11 +132,12 @@ def preprocess_dataframe():
     return df_merge
 
 def run_recommender(args):
-    df = preprocess_dataframe()
+    # df = preprocess_dataframe()
     embeddings = np.load(args.embedding_path)
     # embeddings = np.random.rand(embeddings.shape[0], embeddings.shape[1])
 
-    recommender = ContentBasedRecommender(df, embeddings)
+    # recommender = ContentBasedRecommender(df, embeddings, split_num=split_num)
+    recommender = ContentBasedRecommender(embeddings, split_num=args.split_num)
 
     # import time
     predicted_ratings = None
@@ -146,12 +154,12 @@ def run_recommender(args):
 
     # import code; code.interact(local=dict(globals(), **locals()))
 
-    file_name = '____'.join([
-        datetime.now().strftime('%Y_%m_%d__%H%M%S'),
+    base_file_name = '____'.join([
         args.model_timestamp,
         'seed' + str(recommender.seed),
         f"{embeddings.shape[1]}d"
     ])
+    file_name = config('CROSSVALIDATION_PATH') + 'embedding_preds/' + base_file_name
 
     np.save(file_name + '.npy', predicted_ratings)
 
@@ -171,21 +179,53 @@ def run_recommender(args):
     print(f"[{embeddings.shape[1]}d-{args.model_timestamp}]\t\tRMSE:\t{rmse}\tMSE:\t{mse}\tMAE:\t{mae}")
     df_pred_merged.to_csv(file_name + '.csv', header=True, index=None)
 
+def generate_10fold_cv_split():
+    from sklearn.model_selection import KFold
+    kf = KFold(n_splits=10, shuffle=True, random_state=42)
+
+    df = preprocess_dataframe()
+
+    cv_folder_path = config('CROSSVALIDATION_PATH')
+    split_num = 1
+    for train_ids, test_ids in kf.split(df):
+        print(split_num, train_ids.shape, test_ids.shape)
+
+        df_train = df.iloc[train_ids]
+        df_train.to_csv(cv_folder_path + 'ml20m_train_' + str(split_num) + '.csv', index=None)
+        df_train[['user_id', 'movielens_id', 'rating']].to_csv(cv_folder_path + 'ml20m_train_' + str(split_num) + '__libfm.dat', header=None, index=None)
+
+        df_test = df.iloc[test_ids]
+        df_test.to_csv(cv_folder_path + 'ml20m_test_' + str(split_num) + '.csv', index=None)
+        df_test[['user_id', 'movielens_id', 'rating']].to_csv(cv_folder_path + 'ml20m_test_' + str(split_num) + '__libfm.dat', header=None, index=None)
+
+        # import code; code.interact(local=dict(globals(), **locals()))
+        split_num += 1
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--embedding_path', type=str, help='path where the embeddings are stored, expects numpy file (.npy)')
     parser.add_argument('--model_timestamp', type=str)
+    parser.add_argument('--split_num', type=int, default=1)
 
     args = parser.parse_args()
     run_recommender(args)
+    # generate_10fold_cv_split()
+    
 
-    # import code; code.interact(local=dict(globals(), **locals()))
+
 
 # --embedding_path 'trained_models/2021_06_25__103459/256d_embeddings.npy'
 # --model_timestamp '2021_06_25__103459'
 
-# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152733-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152733
-# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152726-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152726
-# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152725-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152725
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152733-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152733 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152726-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152726 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152725-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152725 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152733-64ep/512d_embeddings.npy --model_timestamp 2021_06_27__152733 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152726-64ep/512d_embeddings.npy --model_timestamp 2021_06_27__152726 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152725-64ep/512d_embeddings.npy --model_timestamp 2021_06_27__152725 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152733-64ep/1024d_embeddings.npy --model_timestamp 2021_06_27__152733 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152726-64ep/1024d_embeddings.npy --model_timestamp 2021_06_27__152726 --split_num 1
+# python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152725-64ep/1024d_embeddings.npy --model_timestamp 2021_06_27__152725 --split_num 1
