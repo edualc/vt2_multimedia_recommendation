@@ -14,10 +14,13 @@ from joblib import Parallel, delayed
 
 # Example Call:
 # 
-# python3 generate_movie_embeddings.py --model_path trained_models/2021_06_27__152733/checkpoints/best.hdf5 --n_classes 13606 --no_self_supervised_head --embedding_path trained_models/2021_06_27__152733
-
+# python3 generate_movie_embeddings.py --model_path trained_models/2021_06_27__152733-64ep/checkpoints/best.hdf5 --n_classes 13606 --no_self_supervised_head --embedding_path trained_models/2021_06_27__152733-64ep
+# 
 def setup_argument_parser():
     parser = argparse.ArgumentParser(description='VT2_VideoEmbeddingGenerator')
+
+    parser.add_argument('--average_only', dest='average_only', action='store_true')
+    parser.set_defaults(average_only=False)
 
     parser.add_argument('--model_path', type=str, help='path to the tensorflow h5 model file.')
     parser.add_argument('--embedding_path', type=str, help='path where the embeddings should be stored')
@@ -77,26 +80,38 @@ def create_data_generator(df, args):
 
 def generate_embeddings(args):
     df = generate_data_frame()
+    df = df.sort_values(['ascending_index', 'keyframe_id'])
+    df.reset_index(inplace=True)
+
     embedding_models = create_embedding_models(args)
 
-    embeddings_dict = {
-        256: np.zeros((df.ascending_index.nunique(), 256)),
-        512: np.zeros((df.ascending_index.nunique(), 512)),
-        1024: np.zeros((df.ascending_index.nunique(), 1024))
-    }
+    if args.average_only:
+        embeddings_dict = {
+            256: np.zeros((df.ascending_index.nunique(), 256)),
+            512: np.zeros((df.ascending_index.nunique(), 512)),
+            1024: np.zeros((df.ascending_index.nunique(), 1024))
+        }
+    else:
+        embeddings_dict = {
+            256: np.zeros((df.shape[0], 256), dtype='float16'),
+            512: np.zeros((df.shape[0], 512), dtype='float16'),
+            1024: np.zeros((df.shape[0], 1024), dtype='float16')
+        }
 
     for ascending_index in tqdm(np.sort(df.ascending_index.unique())):
         df_batch = df[df.ascending_index == ascending_index]
-
         X_batch = np.asarray(Parallel(n_jobs=32)(delayed(load_image)(path) for path in df_batch['full_path']))
 
         for model in embedding_models:
             dimension = model.output.shape[1]
             y_pred = model.predict(X_batch)
 
-            embeddings_dict[dimension][ascending_index, :] = np.mean(y_pred, axis=0)
+            if args.average_only:
+                embeddings_dict[dimension][ascending_index, :] = np.mean(y_pred, axis=0)
+            else:
+                embeddings_dict[dimension][df_batch.index, :] = y_pred
 
-    embeddings_path = args.embedding_path + '/' + datetime.now().strftime('%Y_%m_%d__%H%M%S') + '_embeddings.h5'
+    # embeddings_path = args.embedding_path + '/' + datetime.now().strftime('%Y_%m_%d__%H%M%S') + '_embeddings.h5'
 
     # with h5py.File(embeddings_path, 'w') as f:
     #     for key in embeddings_dict.keys():
@@ -104,7 +119,11 @@ def generate_embeddings(args):
 
     for model in create_embedding_models(args):
         embedding_dim = model.output.shape[1]
-        np.save(args.embedding_path + '/' + str(embedding_dim) + 'd_embeddings.npy', embeddings_dict[embedding_dim])
+        if args.average_only:
+            full_ident = '__average'
+        else:
+            full_ident = '__full'
+        np.save(args.embedding_path + '/' + str(embedding_dim) + 'd_embeddings' + full_ident + '.npy', embeddings_dict[embedding_dim])
 
 if __name__ == '__main__':
     parser = setup_argument_parser()
