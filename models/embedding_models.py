@@ -6,7 +6,7 @@ from tensorflow.keras.applications import MobileNetV3Small
 
 def keyframe_embedding_model(n_classes=13606, n_genres=20, input_shape=(224,224,3), learning_rate=3e-4, \
     rating_head=True, genre_head=True, class_head=True, self_supervised_head=True, \
-    intermediate_activation='relu', l2_beta=0, ):
+    intermediate_activation='relu', l2_beta=0):
     
     keras_loss_functions = dict()
     keras_metrics = dict()

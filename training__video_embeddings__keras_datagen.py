@@ -44,7 +44,9 @@ def get_data_generators(df_train, df_test, split_config, args):
         use_class=args.class_head,
         use_self_supervised=args.self_supervised_head,
         do_parallel=args.do_parallel,
-        n_parallel=args.n_parallel
+        n_parallel=args.n_parallel,
+        zero_batch_mode=args.zero_batch_mode,
+        single_batch_mode=args.single_batch_mode
     )
 
     test_gen = DataFrameImageDataGenerator(df_test, args.batch_size,
@@ -54,7 +56,9 @@ def get_data_generators(df_train, df_test, split_config, args):
         use_class=args.class_head,
         use_self_supervised=args.self_supervised_head,
         do_parallel=args.do_parallel,
-        n_parallel=args.n_parallel
+        n_parallel=args.n_parallel,
+        zero_batch_mode=args.zero_batch_mode,
+        single_batch_mode=args.single_batch_mode
     )
 
     return train_gen, test_gen
@@ -161,6 +165,12 @@ if __name__ == '__main__':
     parser.add_argument('--intermediate_activation', type=str, default='relu')
 
     parser.add_argument('--seed', type=int, default=random_seed_default(), help='Seed used for train test split')
+
+    parser.add_argument('--zero_batch_mode', dest='zero_batch_mode', action='store_true')
+    parser.set_defaults(zero_batch_mode=False)
+
+    parser.add_argument('--single_batch_mode', dest='single_batch_mode', action='store_true')
+    parser.set_defaults(single_batch_mode=False)
 
     parser.add_argument('--rating_head', dest='rating_head', action='store_true')
     parser.add_argument('--no_rating_head', dest='rating_head', action='store_false')

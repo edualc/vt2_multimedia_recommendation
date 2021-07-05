@@ -10,7 +10,11 @@ import tensorflow as tf
 # of https://medium.com/analytics-vidhya/write-your-own-custom-data-generator-for-tensorflow-keras-1252b64e41c3
 # 
 class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, df, batch_size, n_classes, use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, input_size=(224, 224, 3), shuffle=True, do_inference_only=False, do_parallel=False, n_parallel=16):
+    def __init__(self, df, batch_size, n_classes, input_size=(224, 224, 3), shuffle=True, \
+        use_ratings=True, use_genres=True, use_class=True, use_self_supervised=True, \
+        do_inference_only=False, do_parallel=False, n_parallel=16, \
+        zero_batch_mode=False, single_batch_mode=False):
+        
         self.df = df.copy()
         self.batch_size = batch_size
         self.input_size = input_size
@@ -18,6 +22,11 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
         self.do_inference_only = do_inference_only
         self.do_parallel = do_parallel
         self.n_parallel = n_parallel
+
+        # Debug options to see network behaviour in extreme cases
+        self.zero_batch_mode = zero_batch_mode
+        self.single_batch_mode = single_batch_mode
+        self.single_batch_mode__cache = None
 
         # Initial data shuffle
         if self.shuffle:
@@ -54,21 +63,32 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
     # lehl@2021-06-21: Variant with using joblib according to stackoverflow:
     # --> https://stackoverflow.com/questions/33778155/python-parallelized-image-reading-and-preprocessing-using-multiprocessing
     #
-    def parallel_generate_X_batch(self, df_batch, dataframe_key='full_path'):
+    def parallel_X_batch(self, df_batch, dataframe_key='full_path'):
         X_batch = np.asarray(Parallel(n_jobs=self.n_parallel)(delayed(load_image)(path) for path in df_batch[dataframe_key]))
 
         return X_batch
 
-    def generate_X_batch(self, df_batch, dataframe_key='full_path'):
+    def sequential_X_batch(self, df_batch, dataframe_key='full_path'):
         return np.asarray([[load_image(path)] for path in df_batch[dataframe_key]])
 
-    def __get_data(self, df_batch):
+    def generate_X_batch(self, df_batch):
+        if self.zero_batch_mode:
+            return np.zeros((self.batch_size,) + self.input_size)
+
         if self.do_parallel:
-            X_batch = self.parallel_generate_X_batch(df_batch)
+            X_batch = self.parallel_X_batch(df_batch)
         else:
-            X_batch = self.generate_X_batch(df_batch)
+            X_batch = self.sequential_X_batch(df_batch)
         
         X_batch = X_batch.reshape((X_batch.shape[0],) + self.input_size)
+        return X_batch
+
+    def __get_data(self, df_batch):
+        if self.single_batch_mode:
+            if self.single_batch_mode__cache is not None:
+                return self.single_batch_mode__cache
+
+        X_batch = self.generate_X_batch(df_batch)
 
         if self.do_inference_only:
             return X_batch, None
@@ -99,6 +119,9 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
             y_self_supervised = y_self_supervised.reshape((y_self_supervised.shape[0],) + self.input_size)
 
             y_batch['self_supervised'] = y_self_supervised
+
+        if self.single_batch_mode:
+            self.single_batch_mode__cache = (X_batch, y_batch)
 
         return X_batch, y_batch
 
