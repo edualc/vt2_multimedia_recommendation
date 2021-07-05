@@ -34,7 +34,7 @@ TRAIN_SPLIT = 0.9
 TEST_SPLIT = 1 - TRAIN_SPLIT
 
 N_EPOCHS = 256
-BATCH_SIZE = 16
+BATCH_SIZE = 512
 
 def get_data_generators(df_train, df_test, split_config, args):
     train_gen = DataFrameImageDataGenerator(df_train, args.batch_size,
@@ -104,7 +104,8 @@ def initialize_wandb(split_config, args):
             'train': { 'shape': split_config['n_train'] },
             'test': { 'shape': split_config['n_test'] }
         },
-        'model_path': MODEL_PATH
+        'model_path': MODEL_PATH,
+        'args': vars(args)
     })
 
 def train_model(model, train_gen, test_gen, args):
@@ -132,7 +133,9 @@ def generate_model(split_config, args):
         rating_head=args.rating_head,
         genre_head=args.genre_head,
         class_head=args.class_head,
-        self_supervised_head=args.self_supervised_head
+        self_supervised_head=args.self_supervised_head,
+        intermediate_activation=args.intermediate_activation,
+        l2_beta=args.l2_beta
     )
 
 def do_training(args):
@@ -154,6 +157,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_epochs', type=int, default=N_EPOCHS, help='Number of epochs to train')
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size for training and validation')
     parser.add_argument('--learning_rate', type=float, default=3e-4, help='Learning rate used in the network')
+    parser.add_argument('--l2_beta', type=float, default=0)
+    parser.add_argument('--intermediate_activation', type=str, default='relu')
 
     parser.add_argument('--seed', type=int, default=random_seed_default(), help='Seed used for train test split')
 
@@ -175,8 +180,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--parallel_datagen', dest='do_parallel', action='store_true')
     parser.add_argument('--no_parallel_datagen', dest='do_parallel', action='store_false')
-    parser.set_defaults(do_parallel=False)
-    parser.add_argument('--n_parallel', type=int, default=16, help='Number of parallel joblib workers.')
+    parser.set_defaults(do_parallel=True)
+    parser.add_argument('--n_parallel', type=int, default=128, help='Number of parallel joblib workers.')
 
     parser.add_argument('--profiling', dest='do_profiling', action='store_true')
     parser.add_argument('--no_profiling', dest='do_profiling', action='store_false')

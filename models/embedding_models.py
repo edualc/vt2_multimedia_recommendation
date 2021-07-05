@@ -4,7 +4,9 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.applications import MobileNetV3Small
 
-def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3), learning_rate=3e-4, rating_head=True, genre_head=True, class_head=True, self_supervised_head=True):
+def keyframe_embedding_model(n_classes=13606, n_genres=20, input_shape=(224,224,3), learning_rate=3e-4, \
+    rating_head=True, genre_head=True, class_head=True, self_supervised_head=True, \
+    intermediate_activation='relu', l2_beta=0, ):
     
     keras_loss_functions = dict()
     keras_metrics = dict()
@@ -24,15 +26,29 @@ def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3),
     mobilenet_feature_extractor.trainable = False
     x = mobilenet_feature_extractor(input_layer)
 
-    x = layers.Dense(1024, activation='relu', name='dense_embedding_1024')(x)
-    x = layers.Dense(512, activation='relu', name='dense_embedding_512')(x)
-    last_embedding_layer = layers.Dense(256, activation='relu', name='dense_embedding_256')(x)
+    x = layers.Dense(1024,
+        activation=intermediate_activation,
+        kernel_regularizer=tf.keras.regularizers.l2(l2_beta),
+        name='dense_embedding_1024'
+    )(x)
+
+    x = layers.Dense(512,
+        activation=intermediate_activation,
+        kernel_regularizer=tf.keras.regularizers.l2(l2_beta),
+        name='dense_embedding_512'
+    )(x)
+
+    last_embedding_layer = layers.Dense(256,
+        activation=intermediate_activation,
+        kernel_regularizer=tf.keras.regularizers.l2(l2_beta),
+        name='dense_embedding_256'
+    )(x)
  
     # OUTPUT: Mean Rating - Single value regression
     # 
     if rating_head:
-        rating_output = layers.Dense(64, activation='relu')(last_embedding_layer)
-        rating_output = layers.Dense(32, activation='relu')(rating_output)
+        rating_output = layers.Dense(64, activation=intermediate_activation)(last_embedding_layer)
+        rating_output = layers.Dense(32, activation=intermediate_activation)(rating_output)
         rating_output = layers.Dense(1, activation='relu', name='rating')(rating_output)
 
         keras_loss_functions['rating'] = keras.losses.MeanSquaredError()
@@ -45,8 +61,8 @@ def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3),
     # use binary crossentropy
     # 
     if genre_head:
-        genre_output = layers.Dense(128, activation='relu')(last_embedding_layer)
-        genre_output = layers.Dense(64, activation='relu')(genre_output)
+        genre_output = layers.Dense(128, activation=intermediate_activation)(last_embedding_layer)
+        genre_output = layers.Dense(64, activation=intermediate_activation)(genre_output)
         genre_output = layers.Dense(n_genres, activation='sigmoid', name='genres')(genre_output)
 
         keras_loss_functions['genres'] = keras.losses.BinaryCrossentropy()
@@ -57,7 +73,7 @@ def keyframe_embedding_model(n_classes=64, n_genres=20, input_shape=(224,224,3),
     # OUTPUT: Trailer Class - Can be only one, softmax!
     # 
     if class_head:
-        class_output = layers.Dense(256, activation='relu')(last_embedding_layer)
+        class_output = layers.Dense(256, activation=intermediate_activation)(last_embedding_layer)
         class_output = layers.Dense(n_classes, activation='softmax', name='class')(class_output)
 
         keras_loss_functions['class'] = keras.losses.CategoricalCrossentropy()
