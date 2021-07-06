@@ -3,19 +3,17 @@ import pandas as pd
 from decouple import config
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
-# from joblib import Parallel, delayed
-# import itertools
 
 import asyncio
 
-async def calculate_cluster_distances(i,j):
+async def calculate_cluster_distances(i,j, i_indices):
     if i <= j:
         return
 
     # Calculate the distance between each datapoint 
     # inside both embedding clusters using linkage criteria
     # 
-    i_embeddings = emb[df_index.iloc[i]]
+    i_embeddings = emb[i_indices]
     j_embeddings = emb[df_index.iloc[j]]
     dist = cdist(i_embeddings, j_embeddings)
 
@@ -59,9 +57,10 @@ async def main():
     average_distance = np.zeros((n_movies, n_movies), dtype='float16')
 
     for i in tqdm(all_indices):
+        i_indices = df_index.iloc[i]
         used_indices = all_indices[np.where(i > all_indices)]
-        # print(used_indices.shape[0])
-        tasks = (calculate_cluster_distances(i,j) for j in used_indices)
+
+        tasks = (calculate_cluster_distances(i,j,i_indices) for j in used_indices)
         await asyncio.gather(*tasks)
 
     np.save(embeddings_path.replace('embeddings__full','single_distance'), single_distance)
@@ -72,8 +71,3 @@ async def main():
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-
-# all_combinations = np.array([list(zip(each_permutation, y)) for each_permutation in itertools.permutations(x, len(y))]).flatten()
-
-# all_combinations = [list(zip(each_permutation, y)) for each_permutation in itertools.permutations(x, len(y))]
-# flattened = [item for sublist in all_combinations for item in sublist]
