@@ -4,6 +4,29 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.applications import MobileNetV3Small
 
+# def keyframe_embedding_rnn_model(n_classes=13606, n_genres=20, sequence_length=16, input_shape=(224,224,3), learning_rate=3e-4, \
+#     rating_head=True, genre_head=True, class_head=True, self_supervised_head=True, \
+#     intermediate_activation='elu', l2_beta=0.01):
+
+#     mobilenet_feature_extractor = MobileNetV3Small(
+#         weights='imagenet',
+#         pooling='avg',
+#         include_top=False,
+#         input_shape=input_shape
+#     )
+#     mobilenet_feature_extractor.trainable = False
+#     import code; code.interact(local=dict(globals(), **locals()))
+
+#     inputs = keras.Input(shape=(sequence_length,) + input_shape)
+#     cnn = keras.Model(inputs=mobilenet_feature_extractor.input, outputs=mobilenet_feature_extractor.output)
+#     sequenced_cnn = keras.layers.TimeDistributed(cnn)(inputs)
+
+
+#     bilstm = keras.layers.Bidirectional(keras.layers.LSTM())(sequenced_cnn)
+
+
+#     return model
+
 def keyframe_embedding_model(n_classes=13606, n_genres=20, input_shape=(224,224,3), learning_rate=3e-4, \
     rating_head=True, genre_head=True, class_head=True, self_supervised_head=True, \
     intermediate_activation='relu', l2_beta=0):
@@ -102,3 +125,6 @@ def keyframe_embedding_model(n_classes=13606, n_genres=20, input_shape=(224,224,
     model.summary()
 
     return model
+
+# if __name__ == '__main__':
+#     keyframe_embedding_rnn_model()
