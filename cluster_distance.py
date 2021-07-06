@@ -60,7 +60,7 @@ async def main():
 
     for i in tqdm(all_indices):
         used_indices = all_indices[np.where(i > all_indices)]
-        print(used_indices.shape[0])
+        # print(used_indices.shape[0])
         tasks = (calculate_cluster_distances(i,j) for j in used_indices)
         await asyncio.gather(*tasks)
 
@@ -70,7 +70,8 @@ async def main():
     import code; code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
 
 # all_combinations = np.array([list(zip(each_permutation, y)) for each_permutation in itertools.permutations(x, len(y))]).flatten()
 
