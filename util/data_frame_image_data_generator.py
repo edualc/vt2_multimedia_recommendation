@@ -71,7 +71,7 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
     def sequential_X_batch(self, df_batch, dataframe_key='full_path'):
         return np.asarray([[load_image(path)] for path in df_batch[dataframe_key]])
 
-    def generate_X_batch(self, df_batch):
+    def generate_X_batch(self, df_batch, dataframe_key='full_path'):
         if self.zero_batch_mode:
             return np.zeros((self.batch_size,) + self.input_size)
 
@@ -80,7 +80,7 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
         else:
             X_batch = self.sequential_X_batch(df_batch)
         
-        X_batch = X_batch.reshape((X_batch.shape[0],) + self.input_size)
+        X_batch = X_batch.reshape((self.batch_size,) + self.input_size)
         return X_batch
 
     def __get_data(self, df_batch):
@@ -110,13 +110,7 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
             y_batch['genres'] = np.array([np.array([1 if genre in row else 0 for genre in self.unique_genres]) for row in np.char.split(df_batch['genres'].to_numpy().astype(str), sep='|')]).astype(np.byte)
 
         if self.use_self_supervised:
-
-            if self.do_parallel:
-                y_self_supervised = self.parallel_generate_X_batch(df_batch, dataframe_key='next_full_path')
-            else:
-                y_self_supervised = self.generate_X_batch(df_batch, dataframe_key='next_full_path')
-            
-            y_self_supervised = y_self_supervised.reshape((y_self_supervised.shape[0],) + self.input_size)
+            y_self_supervised = self.generate_X_batch(df_batch, dataframe_key='next_full_path')
 
             y_batch['self_supervised'] = y_self_supervised
 

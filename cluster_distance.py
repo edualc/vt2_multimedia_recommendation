@@ -69,5 +69,7 @@ async def main():
     import code; code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':
+    # srun --pty --ntasks=1 --cpus-per-task=2 --mem=32G singularity shell /cluster/home/lehl/docker/vt2_autodl.simg
+
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())

@@ -115,6 +115,9 @@ def initialize_wandb(split_config, args):
 def train_model(model, train_gen, test_gen, args):
     ensure_dir(MODEL_CHECKPOINT_PATH)
 
+    # python3 training__video_embeddings__keras_datagen.py --debug --batch_size 8 --l2_beta 0.01 --intermediate_activation elu --seed 42 --no_self_supervised_head --no_parallel_datagen
+    # import code; code.interact(local=dict(globals(), **locals()))
+
     model.fit(
         train_gen,
         epochs=args.n_epochs,
