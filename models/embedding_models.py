@@ -4,6 +4,10 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.applications import MobileNetV3Small
 from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2
+from tensorflow.python.client import device_lib
+
+def gpu_available():
+    return tf.test.is_gpu_available()
 
 def keyframe_embedding_model__bilstm(n_classes=13606, n_genres=20, input_shape=(224,224,3), sequence_length=20, \
     rating_head=True, genre_head=True, class_head=True, self_supervised_head=True, \
@@ -25,8 +29,12 @@ def keyframe_embedding_model__bilstm(n_classes=13606, n_genres=20, input_shape=(
     input_layer = keras.layers.Input(shape=(sequence_length,) + input_shape)
     features = keras.layers.TimeDistributed(mobilenet)(input_layer)
 
-    lstm = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=True, dropout=0.2, name='bilstm_1'))(features)
-    lstm2 = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=False, dropout=0.2, name='bilstm_2'))(lstm)
+    if gpu_available():
+        lstm = keras.layers.Bidirectional(keras.layers.CuDNNLSTM(256, return_sequences=True, dropout=0.2, name='bilstm_1'))(features)
+        lstm2 = keras.layers.Bidirectional(keras.layers.CuDNNLSTM(256, return_sequences=False, dropout=0.2, name='bilstm_2'))(lstm)
+    else:
+        lstm = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=True, dropout=0.2, name='bilstm_1'))(features)
+        lstm2 = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=False, dropout=0.2, name='bilstm_2'))(lstm)
 
     x = layers.Dense(1024,
         activation=intermediate_activation,

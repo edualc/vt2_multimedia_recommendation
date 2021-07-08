@@ -99,23 +99,23 @@ def generate_data_frame(sequence_length=-1):
         file_name
     ])
 
-    # if os.path.exists(csv_file_path) and os.path.isfile(csv_file_path):
-    #     log('Found the dataset CSV, loading ' + file_name)
-    #     df = pd.read_csv(csv_file_path)
+    if os.path.exists(csv_file_path) and os.path.isfile(csv_file_path):
+        log('Found the dataset CSV, loading ' + file_name)
+        df = pd.read_csv(csv_file_path)
 
-    # else:
-    log('Have not found the dataset CSV ' + file_name + ', generating...')
-    dirs_to_check = _gdf__dirs_to_check(config('KEYFRAME_DATASET_GENERATOR_PATH'))
-    image_list = _gdf__generate_image_list(dirs_to_check, sequence_length=sequence_length)
+    else:
+        log('Have not found the dataset CSV ' + file_name + ', generating...')
+        dirs_to_check = _gdf__dirs_to_check(config('KEYFRAME_DATASET_GENERATOR_PATH'))
+        image_list = _gdf__generate_image_list(dirs_to_check, sequence_length=sequence_length)
 
-    df = pd.DataFrame(image_list)
+        df = pd.DataFrame(image_list)
 
-    df_metadata, unique_genres, unique_movielens_ids = _gdf__read_metadata()
+        df_metadata, unique_genres, unique_movielens_ids = _gdf__read_metadata()
 
-    df = df.merge(df_metadata, how='inner', on='movielens_id')
-    df['ascending_index'] = _gdf__generate_ascending_index(df)
-    df['movielens_id'] = df['movielens_id'].astype(str)
+        df = df.merge(df_metadata, how='inner', on='movielens_id')
+        df['ascending_index'] = _gdf__generate_ascending_index(df)
+        df['movielens_id'] = df['movielens_id'].astype(str)
 
-    df.to_csv(csv_file_path, index=None, header=True)
+        df.to_csv(csv_file_path, index=None, header=True)
 
     return df

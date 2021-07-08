@@ -11,10 +11,11 @@ from util.paths import ensure_dir
 # from util.data_generator import H5DataGenerator
 # from util.data_generator__parallel import ParallelH5DataGenerator
 from util.data_frame_image_data_generator import DataFrameImageDataGenerator
+from util.data_frame_sequence_data_generator import DataFrameSequenceDataGenerator
 from util.dataset_data_frame_generator import generate_data_frame
 from util.random_seed import random_seed_default
 
-from models.embedding_models import keyframe_embedding_model
+from models.embedding_models import keyframe_embedding_model, keyframe_embedding_model__bilstm
 from tqdm import tqdm
 
 from sklearn.model_selection import train_test_split
@@ -37,6 +38,41 @@ N_EPOCHS = 256
 BATCH_SIZE = 512
 
 def get_data_generators(df_train, df_test, split_config, args):
+    if args.bilstm:
+        return get_sequence_generators(df_train, df_test, split_config, args)
+    else:
+        return get_image_generators(df_train, df_test, split_config, args)
+
+def get_sequence_generators(df_train, df_test, split_config, args):
+    train_gen = DataFrameSequenceDataGenerator(df_train, args.batch_size,
+        n_classes=split_config['n_classes'],
+        sequence_length=args.sequence_length,
+        use_ratings=args.rating_head,
+        use_genres=args.genre_head,
+        use_class=args.class_head,
+        use_self_supervised=args.self_supervised_head,
+        do_parallel=args.do_parallel,
+        n_parallel=args.n_parallel,
+        zero_batch_mode=args.zero_batch_mode,
+        single_batch_mode=args.single_batch_mode
+    )
+
+    test_gen = DataFrameSequenceDataGenerator(df_test, args.batch_size,
+        n_classes=split_config['n_classes'],
+        sequence_length=args.sequence_length,
+        use_ratings=args.rating_head,
+        use_genres=args.genre_head,
+        use_class=args.class_head,
+        use_self_supervised=args.self_supervised_head,
+        do_parallel=args.do_parallel,
+        n_parallel=args.n_parallel,
+        zero_batch_mode=args.zero_batch_mode,
+        single_batch_mode=args.single_batch_mode
+    )
+
+    return train_gen, test_gen
+
+def get_image_generators(df_train, df_test, split_config, args):
     train_gen = DataFrameImageDataGenerator(df_train, args.batch_size,
         n_classes=split_config['n_classes'],
         use_ratings=args.rating_head,
@@ -64,7 +100,7 @@ def get_data_generators(df_train, df_test, split_config, args):
     return train_gen, test_gen
 
 def generate_split(args):
-    df = generate_data_frame()
+    df = generate_data_frame(sequence_length=args.sequence_length)
 
     unique_genres = np.sort(np.unique(np.array([item for sublist in [genre_list.split('|') for genre_list in list(df.genres.unique())] for item in sublist])))
 
@@ -80,8 +116,8 @@ def generate_split(args):
 
     return df_train, df_test, split_config
 
-def initialize_wandb(split_config, args):
-    wandb_base_name = 'embedding'
+def wandb_group_name(split_config, args):
+    base_name = 'embedding'
 
     heads = [
         'R' if args.rating_head else '',
@@ -89,17 +125,21 @@ def initialize_wandb(split_config, args):
         'C' if args.class_head else '',
         'S' if args.self_supervised_head else ''
     ]
-    wandb_base_name = wandb_base_name + '_' + ''.join(heads)
+    base_name = base_name + '_' + ''.join(heads)
     
-    if not args.debug:
-        wandb_group_name = wandb_base_name + '_nALL'
-        
-        if split_config['n_classes'] > 0:
-            wandb_group_name = wandb_base_name + '_n' + str(split_config['n_classes'])
-    else:
-        wandb_group_name = wandb_base_name + '_development'
+    if args.sequence_length > 0:
+        base_name = base_name + '_seq' + str(args.sequence_length)
 
-    wandb.init(project='zhaw_vt2', entity='lehl', group=wandb_group_name, config={
+    if args.debug:
+        return base_name + '_development'
+
+    if split_config['n_classes'] > 0:
+        return base_name + '_n' + str(split_config['n_classes'])
+
+def initialize_wandb(split_config, args):
+    group_name = wandb_group_name(split_config, args)
+
+    wandb.init(project='zhaw_vt2', entity='lehl', group=group_name, config={
         'batch_size': args.batch_size,
         'n_epochs': args.n_epochs,
         'seed': args.seed,
@@ -131,16 +171,22 @@ def train_model(model, train_gen, test_gen, args):
     model.save('trained_models/' + datetime.now().strftime('%Y_%m_%d__%H%M%S'))
 
 def generate_model(split_config, args):
-    return keyframe_embedding_model(
-        n_classes=split_config['n_classes'],
-        n_genres=split_config['n_genres'],
-        rating_head=args.rating_head,
-        genre_head=args.genre_head,
-        class_head=args.class_head,
-        self_supervised_head=args.self_supervised_head,
-        intermediate_activation=args.intermediate_activation,
-        l2_beta=args.l2_beta
-    )
+    config = {
+        'n_classes': split_config['n_classes'],
+        'n_genres': split_config['n_genres'],
+        'rating_head': args.rating_head,
+        'genre_head': args.genre_head,
+        'class_head': args.class_head,
+        'self_supervised_head': args.self_supervised_head,
+        'intermediate_activation': args.intermediate_activation,
+        'l2_beta': args.l2_beta
+    }
+
+    if args.bilstm:
+        config['sequence_length'] = args.sequence_length
+        return keyframe_embedding_model__bilstm(**config)
+    else:
+        return keyframe_embedding_model(**config)
 
 def do_training(args):
     df_train, df_test, split_config = generate_split(args)
@@ -163,6 +209,10 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=3e-4, help='Learning rate used in the network')
     parser.add_argument('--l2_beta', type=float, default=0)
     parser.add_argument('--intermediate_activation', type=str, default='relu')
+
+    parser.add_argument('--sequence_length', type=int, default=-1, help='length of sequences used in the bilstm variant')
+    parser.add_argument('--bilstm', dest='bilstm', action='store_true', help='use the BiLSTM network')
+    parser.set_defaults(bilstm=False)
 
     parser.add_argument('--seed', type=int, default=random_seed_default(), help='Seed used for train test split')
 
