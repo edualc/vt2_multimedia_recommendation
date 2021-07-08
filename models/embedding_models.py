@@ -42,6 +42,7 @@ def keyframe_embedding_model(n_classes=13606, n_genres=20, input_shape=(224,224,
     # of the MobileNet network? --> "pooling" keyword
     # 
     mobilenet_feature_extractor = MobileNetV3Small(
+        input_shape=input_shape,
         weights='imagenet',
         pooling='avg',
         include_top=False

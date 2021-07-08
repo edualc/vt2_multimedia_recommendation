@@ -104,6 +104,7 @@ class DataFrameImageDataGenerator(tf.keras.utils.Sequence):
             if np.isnan(y_rating).any():
                 y_rating[np.isnan(y_rating)] = self.mean_rating
 
+            y_rating = y_rating.reshape((y_rating.shape[0], 1))
             y_batch['rating'] = y_rating
 
         if self.use_genres:

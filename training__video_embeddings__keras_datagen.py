@@ -115,9 +115,6 @@ def initialize_wandb(split_config, args):
 def train_model(model, train_gen, test_gen, args):
     ensure_dir(MODEL_CHECKPOINT_PATH)
 
-    # python3 training__video_embeddings__keras_datagen.py --debug --batch_size 8 --l2_beta 0.01 --intermediate_activation elu --seed 42 --no_self_supervised_head --no_parallel_datagen
-    # import code; code.interact(local=dict(globals(), **locals()))
-
     model.fit(
         train_gen,
         epochs=args.n_epochs,
@@ -168,6 +165,8 @@ if __name__ == '__main__':
     parser.add_argument('--intermediate_activation', type=str, default='relu')
 
     parser.add_argument('--seed', type=int, default=random_seed_default(), help='Seed used for train test split')
+    parser.add_argument('--model_weight_path', type=str)
+    parser.add_argument('--start_epoch', type=int, default=1)
 
     parser.add_argument('--zero_batch_mode', dest='zero_batch_mode', action='store_true')
     parser.set_defaults(zero_batch_mode=False)
