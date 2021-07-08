@@ -1,0 +1,1 @@
+srun --pty --ntasks=1 --cpus-per-task=2 --mem=64G --gres=gpu:1 --qos=staff-long singularity shell /cluster/home/lehl/docker/vt2_autodl.simg
