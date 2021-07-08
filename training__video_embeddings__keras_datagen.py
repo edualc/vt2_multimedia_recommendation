@@ -165,8 +165,6 @@ if __name__ == '__main__':
     parser.add_argument('--intermediate_activation', type=str, default='relu')
 
     parser.add_argument('--seed', type=int, default=random_seed_default(), help='Seed used for train test split')
-    parser.add_argument('--model_weight_path', type=str)
-    parser.add_argument('--start_epoch', type=int, default=1)
 
     parser.add_argument('--zero_batch_mode', dest='zero_batch_mode', action='store_true')
     parser.set_defaults(zero_batch_mode=False)
