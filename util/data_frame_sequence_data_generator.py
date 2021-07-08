@@ -51,8 +51,6 @@ class DataFrameSequenceDataGenerator(DataFrameImageDataGenerator):
         # X_batch = np.asarray(Parallel(n_jobs=self.n_parallel)(delayed(load_image)(path) for pathlist in df_batch[dataframe_key] for path in pathlist[2:-2].replace("'","").split('\n ')))
         X_batch = np.zeros((self.batch_size, self.sequence_length) + self.input_size)
 
-        for pathlist in df_batch[dataframe_key] for path in pathlist[2:-2].replace("'","").split('\n ')
-
         for i, pathlist in enumerate(df_batch[dataframe_key]):
             pathlist = pathlist[2:-2].replace("'","").split('\n ')
             X_batch[i, :, :, :, :] = np.asarray(Parallel(n_jobs=self.n_parallel)(delayed(load_image)(path) for path in pathlist))
