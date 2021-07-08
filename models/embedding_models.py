@@ -29,12 +29,8 @@ def keyframe_embedding_model__bilstm(n_classes=13606, n_genres=20, input_shape=(
     input_layer = keras.layers.Input(shape=(sequence_length,) + input_shape)
     features = keras.layers.TimeDistributed(mobilenet)(input_layer)
 
-    if gpu_available():
-        lstm = keras.layers.Bidirectional(keras.layers.CuDNNLSTM(256, return_sequences=True, dropout=0.2, name='bilstm_1'))(features)
-        lstm2 = keras.layers.Bidirectional(keras.layers.CuDNNLSTM(256, return_sequences=False, dropout=0.2, name='bilstm_2'))(lstm)
-    else:
-        lstm = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=True, dropout=0.2, name='bilstm_1'))(features)
-        lstm2 = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=False, dropout=0.2, name='bilstm_2'))(lstm)
+    lstm = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=True, dropout=0.2, name='bilstm_1'))(features)
+    lstm2 = keras.layers.Bidirectional(keras.layers.LSTM(256, return_sequences=False, dropout=0.2, name='bilstm_2'))(lstm)
 
     x = layers.Dense(1024,
         activation=intermediate_activation,
