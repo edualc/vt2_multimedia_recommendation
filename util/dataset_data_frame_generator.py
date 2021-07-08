@@ -18,28 +18,40 @@ def _gdf__dirs_to_check(path):
 
     return dirs
 
-def _gdf__next_keyframe_path(directory, file, keyframe_id):
-    def next_path(file, keyframe_id):
-        return '_'.join(file.split('_')[:-1]) + '_' + keyframe_id + '.' + file.split('.')[1]
-    
-    next_keyframe_id = f"{int(keyframe_id) + 1:05}"
-    next_full_path = next_path(file, next_keyframe_id)
-
-    if not os.path.exists('/'.join([directory, next_full_path])):
-        next_full_path = next_path(file, '00000')
-
-    return '/'.join([directory, next_full_path])
-
-def _gdf__generate_image_list(dirs_to_check):
+def _gdf__generate_image_list(dirs_to_check, sequence_length=-1):
     image_list = list()
 
     for directory in tqdm(dirs_to_check):
         movielens_id = directory.split('/')[-1]
+        files_in_directory = np.sort(os.listdir(directory))
+        num_files = files_in_directory.shape[0]
 
-        for file in os.listdir(directory):
-            full_path = '/'.join([directory, file])
+        for i, file in enumerate(files_in_directory):
             keyframe_id = file.split('.')[0].split('_')[-1]
-            next_full_path = _gdf__next_keyframe_path(directory, file, keyframe_id)
+            
+            if sequence_length > 0:
+                # Only generate sequences that fit, do not overwrap
+                # 
+                if (i + sequence_length + 1) > num_files:
+                    continue
+
+                # Do not generate all sequences, as a certain overlap should suffice
+                #
+                if i % 5 != 0:
+                    continue
+
+                full_path = np.array(list(map(lambda x: '/'.join([directory, x]), files_in_directory[i:i+sequence_length])))
+
+                # next frame after sequence
+                next_full_path = '/'.join([directory, files_in_directory[i+sequence_length]])
+            else:
+                # Skip last frame as there is no next frame
+                # 
+                if i + 1 > num_files:
+                    continue
+
+                full_path = '/'.join([directory, file])
+                next_full_path = '/'.join([directory, files_in_directory[i+1]])
 
             image_list.append({
                 'movielens_id': int(movielens_id),
@@ -76,29 +88,34 @@ def _gdf__read_metadata():
 
     return df, unique_genres, unique_movie_ids
 
-def generate_data_frame():
+def generate_data_frame(sequence_length=-1):
+    file_name = 'dataset_data_frame.csv'
+
+    if sequence_length > 0:
+        file_name = 'dataset_data_frame__seq' + str(sequence_length) + '.csv'
+
     csv_file_path = ''.join([
         config('KEYFRAME_DATASET_GENERATOR_PATH'),
-        'dataset_data_frame.csv'
+        file_name
     ])
 
-    if os.path.exists(csv_file_path) and os.path.isfile(csv_file_path):
-        log('Found the dataset CSV, loading.')
-        df = pd.read_csv(csv_file_path)
+    # if os.path.exists(csv_file_path) and os.path.isfile(csv_file_path):
+    #     log('Found the dataset CSV, loading ' + file_name)
+    #     df = pd.read_csv(csv_file_path)
 
-    else:
-        log('Have not found the dataset CSV, generating...')
-        dirs_to_check = _gdf__dirs_to_check(config('KEYFRAME_DATASET_GENERATOR_PATH'))
-        image_list = _gdf__generate_image_list(dirs_to_check)
+    # else:
+    log('Have not found the dataset CSV ' + file_name + ', generating...')
+    dirs_to_check = _gdf__dirs_to_check(config('KEYFRAME_DATASET_GENERATOR_PATH'))
+    image_list = _gdf__generate_image_list(dirs_to_check, sequence_length=sequence_length)
 
-        df = pd.DataFrame(image_list)
+    df = pd.DataFrame(image_list)
 
-        df_metadata, unique_genres, unique_movielens_ids = _gdf__read_metadata()
+    df_metadata, unique_genres, unique_movielens_ids = _gdf__read_metadata()
 
-        df = df.merge(df_metadata, how='inner', on='movielens_id')
-        df['ascending_index'] = _gdf__generate_ascending_index(df)
-        df['movielens_id'] = df['movielens_id'].astype(str)
+    df = df.merge(df_metadata, how='inner', on='movielens_id')
+    df['ascending_index'] = _gdf__generate_ascending_index(df)
+    df['movielens_id'] = df['movielens_id'].astype(str)
 
-        df.to_csv(csv_file_path, index=None, header=True)
+    df.to_csv(csv_file_path, index=None, header=True)
 
     return df
