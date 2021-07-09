@@ -15,7 +15,7 @@ from util.data_frame_sequence_data_generator import DataFrameSequenceDataGenerat
 from util.dataset_data_frame_generator import generate_data_frame
 from util.random_seed import random_seed_default
 
-from models.embedding_models import keyframe_embedding_model, keyframe_embedding_model__bilstm
+from models.embedding_models import keyframe_embedding_model, keyframe_embedding_model__bilstm, keyframe_embedding_model__bigru
 from tqdm import tqdm
 
 from sklearn.model_selection import train_test_split
@@ -38,7 +38,7 @@ N_EPOCHS = 256
 BATCH_SIZE = 512
 
 def get_data_generators(df_train, df_test, split_config, args):
-    if args.bilstm:
+    if args.bilstm or args.bigru:
         return get_sequence_generators(df_train, df_test, split_config, args)
     else:
         return get_image_generators(df_train, df_test, split_config, args)
@@ -185,6 +185,9 @@ def generate_model(split_config, args):
     if args.bilstm:
         config['sequence_length'] = args.sequence_length
         return keyframe_embedding_model__bilstm(**config)
+    elif args.bigru:
+        config['sequence_length'] = args.sequence_length
+        return keyframe_embedding_model__bigru(**config)
     else:
         return keyframe_embedding_model(**config)
 
@@ -213,6 +216,8 @@ if __name__ == '__main__':
     parser.add_argument('--sequence_length', type=int, default=-1, help='length of sequences used in the bilstm variant')
     parser.add_argument('--bilstm', dest='bilstm', action='store_true', help='use the BiLSTM network')
     parser.set_defaults(bilstm=False)
+    parser.add_argument('--bigru', dest='bigru', action='store_true', help='use the BiGRU network')
+    parser.set_defaults(bigru=False)
 
     parser.add_argument('--seed', type=int, default=random_seed_default(), help='Seed used for train test split')
 

@@ -66,6 +66,8 @@ class DataFrameSequenceDataGenerator(DataFrameImageDataGenerator):
 
         return X_batch
 
+    # Currently only works for the actual batches, not for extracting the next (single) frame
+    # 
     def generate_X_batch(self, df_batch, dataframe_key='full_path'):
         if self.zero_batch_mode:
             return np.zeros((self.batch_size, self.sequence_length) + self.input_size)
