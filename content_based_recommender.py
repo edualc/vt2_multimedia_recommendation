@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import numpy.ma as ma
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -15,12 +16,16 @@ from util.random_seed import random_seed_default
 # - https://www.coursera.org/lecture/machine-learning-with-python/content-based-recommender-systems-jPrfc
 #
 class ContentBasedRecommender():
-    def __init__(self, embeddings, split_num=1, seed=None, test_ratio=0.1):
+    def __init__(self, embeddings=None, embedding_distances=None, use_closest_rating=False, use_mean_user_rating=False, split_num=1, seed=None, test_ratio=0.1):
         # self.df = df
         self.embeddings = embeddings
+        self.embedding_distances = embedding_distances
         self.split_num = split_num
         self.seed = seed if seed else random_seed_default()
         self.test_ratio = test_ratio
+
+        self.use_closest_rating = use_closest_rating
+        self.use_mean_user_rating = use_mean_user_rating
 
         self.df_train = None
         self.df_test = None
@@ -57,7 +62,10 @@ class ContentBasedRecommender():
         self.df_test = pd.read_csv(test_path)
 
     def embedding_similarities(self):
-        if self.__embedding_similarities is None:
+        if self.embedding_distances is not None:
+            return self.embedding_distances
+
+        if self.__embedding_similarities is None and self.embeddings is not None:
             self.__embedding_similarities = cosine_similarity(self.embeddings)
 
             # Setting the similarity of each embedding to itself to 0,
@@ -106,7 +114,22 @@ class ContentBasedRecommender():
 
         users_item_similarities = user_item_interaction_mask * np.tile(item_similarities, (users_items.shape[0],1))
 
-        ratings = np.sum(users_item_similarities * user_item_ratings, axis=1) / np.sum(users_item_similarities, axis=1)
+        if self.use_closest_rating:
+            if self.embeddings is not None:
+                ratings = user_item_ratings[np.arange(user_item_ratings.shape[0]), np.argmax(users_item_similarities, axis=1)]
+
+            else:
+                # Apply as mask to filter out any zero values and
+                # take the lowest distance between clusters
+                # 
+                argmin_indices = np.argmin(ma.masked_where(users_item_similarities==0, users_item_similarities), axis=1)
+                ratings = user_item_ratings[np.arange(user_item_ratings.shape[0]), argmin_indices]
+
+        elif self.use_mean_user_rating:
+            ratings = np.mean(ma.masked_where(user_item_ratings==0, user_item_ratings), axis=1).data
+
+        else:
+            ratings = np.sum(users_item_similarities * user_item_ratings, axis=1) / np.sum(users_item_similarities, axis=1)
 
         user_item_rating_tuples = np.vstack((user_ids, np.repeat(int(ascending_index), user_ids.shape[0]), ratings))
         return user_item_rating_tuples
@@ -131,13 +154,67 @@ def preprocess_dataframe():
     df_merge = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'),'ratings_data_frame.csv']))
     return df_merge
 
+def run_recommender_on_linkage(args):
+    if args.random_distances:
+        random_distances = np.random.rand(13606,13606)
+        recommender = ContentBasedRecommender(embedding_distances=random_distances, use_closest_rating=args.use_closest_rating, use_mean_user_rating=args.use_mean_user_rating, split_num=args.split_num)
+        base_file_name = '____'.join([
+            'split'+str(args.split_num),
+            'random'
+        ])
+    elif args.equal_distances:
+        equal_distances = np.ones((13606, 13606))
+        recommender = ContentBasedRecommender(embedding_distances=equal_distances, use_closest_rating=args.use_closest_rating, use_mean_user_rating=args.use_mean_user_rating, split_num=args.split_num)
+        base_file_name = '____'.join([
+            'split'+str(args.split_num),
+            'equal_distance'
+        ])
+    else:
+        distances = np.load(args.distances_path)
+        recommender = ContentBasedRecommender(embedding_distances=distances, use_closest_rating=args.use_closest_rating, use_mean_user_rating=args.use_mean_user_rating, split_num=args.split_num)
+        
+        base_file_name = '____'.join([
+            args.distances_path.split('/')[-1].split('.npy')[0],
+            'split'+str(args.split_num),
+            'linkage_pred'
+        ])
+
+    predicted_ratings = None
+    for asc_id in tqdm(np.sort(recommender.df_test.ascending_index.unique())):
+        new_ratings = recommender.generate_ratings(asc_id)
+
+        if predicted_ratings is None:
+            predicted_ratings = new_ratings
+        else:
+            predicted_ratings = np.append(predicted_ratings, new_ratings, axis=1)
+
+    file_name = config('CROSSVALIDATION_PATH') + 'embedding_preds/' + base_file_name
+
+    np.save(file_name + '.npy', predicted_ratings)
+
+    df_pred = pd.DataFrame(predicted_ratings).transpose()
+    df_pred.columns = ['user_id','ascending_index','predicted_rating']
+    df_pred_merged = recommender.df_test.merge(df_pred, on=['user_id','ascending_index'])
+
+    mse = mean_squared_error(df_pred_merged['rating'], df_pred_merged['predicted_rating'])
+    # 0.927 MSE @ Random
+    # 
+    rmse = mean_squared_error(df_pred_merged['rating'], df_pred_merged['predicted_rating'], squared=False)
+    # 0.??? RMSE @ Random
+
+    mae = mean_absolute_error(df_pred_merged['rating'], df_pred_merged['predicted_rating'])
+    # 0.751 MAE @ Random
+
+    print(f"[{file_name}]\t\tRMSE:\t{rmse}\tMSE:\t{mse}\tMAE:\t{mae}")
+    df_pred_merged.to_csv(file_name + '.csv', header=True, index=None)
+
 def run_recommender(args):
     # df = preprocess_dataframe()
     embeddings = np.load(args.embedding_path)
     # embeddings = np.random.rand(embeddings.shape[0], embeddings.shape[1])
 
     # recommender = ContentBasedRecommender(df, embeddings, split_num=split_num)
-    recommender = ContentBasedRecommender(embeddings, split_num=args.split_num)
+    recommender = ContentBasedRecommender(embeddings=embeddings, use_closest_rating=args.use_closest_rating, use_mean_user_rating=args.use_mean_user_rating, split_num=args.split_num)
 
     # import time
     predicted_ratings = None
@@ -157,6 +234,7 @@ def run_recommender(args):
     base_file_name = '____'.join([
         args.model_timestamp,
         'seed' + str(recommender.seed),
+        'split'+str(args.split_num),
         f"{embeddings.shape[1]}d"
     ])
     file_name = config('CROSSVALIDATION_PATH') + 'embedding_preds/' + base_file_name
@@ -203,22 +281,41 @@ def generate_10fold_cv_split():
 
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--embedding_path', type=str, help='path where the embeddings are stored, expects numpy file (.npy)')
+    parser.add_argument('--embedding_path', type=str, default=None, help='path where the embeddings are stored, expects numpy file (.npy)')
+    parser.add_argument('--distances_path', type=str, default=None, help='path where the distances between items are stored, expects a numpy file (.npy)')
+    parser.add_argument('--random_distances', dest='random_distances', action='store_true')
+    parser.set_defaults(random_distances=False)
+    parser.add_argument('--equal_distances', dest='equal_distances', action='store_true')
+    parser.set_defaults(equal_distances=False)
+
+    parser.add_argument('--use_closest_rating', dest='use_closest_rating', action='store_true')
+    parser.set_defaults(use_closest_rating=False)
+    parser.add_argument('--use_mean_user_rating', dest='use_mean_user_rating', action='store_true')
+    parser.set_defaults(use_mean_user_rating=False)
+
     parser.add_argument('--model_timestamp', type=str)
     parser.add_argument('--split_num', type=int, default=1)
 
+
     args = parser.parse_args()
-    run_recommender(args)
+
+    if args.embedding_path is not None:
+        run_recommender(args)
+    elif args.distances_path is not None or args.random_distances or args.equal_distances:
+        run_recommender_on_linkage(args)
+    else:
+        print('Missing embedding_path or distances_path arguments')
     # generate_10fold_cv_split()
     
 
 
-
-# --embedding_path 'trained_models/2021_06_25__103459/256d_embeddings.npy'
-# --model_timestamp '2021_06_25__103459'
+# --distances_path trained_models/2021_06_27__152733-64ep/256d_single_distance.npy
+# --distances_path trained_models/2021_06_27__152733-64ep/256d_complete_distance.npy
+# --distances_path trained_models/2021_06_27__152733-64ep/256d_average_distance.npy
+# --embedding_path trained_models/2021_06_25__103459/256d_embeddings.npy
+# --model_timestamp 2021_06_25__103459
 
 # python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152733-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152733 --split_num 1
 # python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152726-64ep/256d_embeddings.npy --model_timestamp 2021_06_27__152726 --split_num 1
@@ -229,3 +326,7 @@ if __name__ == '__main__':
 # python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152733-64ep/1024d_embeddings.npy --model_timestamp 2021_06_27__152733 --split_num 1
 # python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152726-64ep/1024d_embeddings.npy --model_timestamp 2021_06_27__152726 --split_num 1
 # python3 content_based_recommender.py --embedding_path trained_models/2021_06_27__152725-64ep/1024d_embeddings.npy --model_timestamp 2021_06_27__152725 --split_num 1
+
+# python3 content_based_recommender.py --distances_path trained_models/2021_06_27__152733-64ep/256d_single_distance.npy --model_timestamp 2021_06_27__152733 --split_num 2
+# python3 content_based_recommender.py --distances_path trained_models/2021_06_27__152733-64ep/256d_complete_distance.npy --model_timestamp 2021_06_27__152733 --split_num 2
+# python3 content_based_recommender.py --distances_path trained_models/2021_06_27__152733-64ep/256d_average_distance.npy --model_timestamp 2021_06_27__152733 --split_num 2
