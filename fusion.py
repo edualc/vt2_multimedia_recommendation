@@ -28,16 +28,22 @@ def evaluate(true_ratings, predicted_ratings, label='--'):
 cv_base_path = config('CROSSVALIDATION_PATH')
 
 embedding_split_2 = [
-    cv_base_path + 'embedding_preds/2021_06_27__152725____seed1734596388____256d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152725____seed1589062263____512d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152725____seed1242187595____1024d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152726____seed1762155816____256d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152726____seed1338824530____512d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152726____seed161737469____1024d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152733____seed1366401075____256d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152733____seed2062216208____512d.csv',
-    cv_base_path + 'embedding_preds/2021_06_27__152733____seed460150410____1024d.csv'
+    # cv_base_path + 'embedding_preds/2021_06_27__152725____seed1734596388____256d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152725____seed1589062263____512d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152725____seed1242187595____1024d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152726____seed1762155816____256d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152726____seed1338824530____512d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152726____seed161737469____1024d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152733____seed1366401075____256d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152733____seed2062216208____512d.csv',
+    # cv_base_path + 'embedding_preds/2021_06_27__152733____seed460150410____1024d.csv',
+    
+    # cv_base_path + 'embedding_preds/256d_single_distance____linkage_pred.csv',
+    # cv_base_path + 'embedding_preds/256d_complete_distance____linkage_pred.csv',
+    # cv_base_path + 'embedding_preds/256d_average_distance____linkage_pred.csv',
+    cv_base_path + 'embedding_preds/split2____random.csv'
 ]
+
 
 # libfm_split1 = cv_base_path + 'libfm_preds/libfm_1.pred'
 libfm_split2 = cv_base_path + 'libfm_preds/libfm_2.pred'
