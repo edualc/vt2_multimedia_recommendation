@@ -1,30 +1,22 @@
 import pandas as pd
-from bs4 import BeautifulSoup
-import re
-import csv
+import numpy as np
+from tqdm import tqdm
 
-# Import dataframe containing the ML20M YT dataset
-# 
-df = pd.read_csv('datasets/ml20m_youtube/youtube_extracted.csv', index_col=0)
-
-# Import list to be filtered
-# 
-with open('datasets/ml20m_youtube/ml20myt_available__cleaned.txt') as f:
-    filter_list = f.readlines()
-
-filter_list = [line.strip() for line in filter_list]
-
-# Filter out movies that are not needed
-# 
-filtered_df = df[df.index.isin(filter_list)]
-
-for index, row in filtered_df.iterrows():
-    import code; code.interact(local=dict(globals(), **locals()))
+folder_path = 'trained_models/2021_07_08__201227-BiLSTM-Seq20/'
+df = pd.read_csv(folder_path + 'dataset_data_frame__seq20.csv')
+df = df.sort_values(['ascending_index', 'keyframe_id'])
+embeddings = np.load(folder_path + '512d_embeddings__full.npy')
 
 
+mean_embs = np.zeros((df.ascending_index.nunique(), embeddings.shape[1]))
+ascending_idx = df.ascending_index.unique()
 
+for i in tqdm(df.ascending_index.unique()):
+    df_batch = df[df.ascending_index == i]
 
+    mean_embs[i,:] = np.mean(embeddings[df_batch.index,:],axis=0)
 
+np.save(folder_path + str(embeddings.shape[1]) + 'd_embeddings__average.npy', mean_embs)
+np.save(folder_path + 'gpulogin_idx.npy', ascending_idx)
 
-
-
+import code; code.interact(local=dict(globals(), **locals()))
