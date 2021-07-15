@@ -108,22 +108,18 @@ def generate_embeddings(args):
 
     embedding_models = create_embedding_models(args)
 
-    if args.average_only:
-        embeddings_dict = {
-            256: np.zeros((df.ascending_index.nunique(), 256)),
-            512: np.zeros((df.ascending_index.nunique(), 512))
-        }
+    embeddings_dict_avg = {
+        256: np.zeros((df.ascending_index.nunique(), 256)),
+        512: np.zeros((df.ascending_index.nunique(), 512))
+    }
+    embeddings_dict = {
+        256: np.zeros((df.shape[0], 256), dtype='float16'),
+        512: np.zeros((df.shape[0], 512), dtype='float16')
+    }
 
-        if not (args.bilstm or args.bigru):
-            embeddings_dict[1024] = np.zeros((df.ascending_index.nunique(), 1024))
-    else:
-        embeddings_dict = {
-            256: np.zeros((df.shape[0], 256), dtype='float16'),
-            512: np.zeros((df.shape[0], 512), dtype='float16')
-        }
-
-        if not (args.bilstm or args.bigru):
-            embeddings_dict[1024] = np.zeros((df.shape[0], 1024), dtype='float16')
+    if not (args.bilstm or args.bigru):
+        embeddings_dict_avg[1024] = np.zeros((df.ascending_index.nunique(), 1024))
+        embeddings_dict[1024] = np.zeros((df.shape[0], 1024), dtype='float16')
 
     for ascending_index in tqdm(np.sort(df.ascending_index.unique())):
         df_batch = df[df.ascending_index == ascending_index]
@@ -142,10 +138,8 @@ def generate_embeddings(args):
             dimension = model.output.shape[1]
             y_pred = model.predict(X_batch)
 
-            if args.average_only:
-                embeddings_dict[dimension][ascending_index, :] = np.mean(y_pred, axis=0)
-            else:
-                embeddings_dict[dimension][df_batch.index, :] = y_pred
+            embeddings_dict_avg[dimension][ascending_index, :] = np.mean(y_pred, axis=0)
+            embeddings_dict[dimension][df_batch.index, :] = y_pred
 
     # embeddings_path = args.embedding_path + '/' + datetime.now().strftime('%Y_%m_%d__%H%M%S') + '_embeddings.h5'
 
@@ -156,12 +150,8 @@ def generate_embeddings(args):
     for model in embedding_models:
         embedding_dim = model.output.shape[1]
 
-        if args.average_only:
-            full_ident = '__average'
-        else:
-            full_ident = '__full'
-
-        np.save(args.embedding_path + '/' + str(embedding_dim) + 'd_embeddings' + full_ident + '.npy', embeddings_dict[embedding_dim])
+        np.save(args.embedding_path + '/' + str(embedding_dim) + 'd_embeddings__average.npy', embeddings_dict_avg[embedding_dim])
+        np.save(args.embedding_path + '/' + str(embedding_dim) + 'd_embeddings__full.npy', embeddings_dict[embedding_dim])
 
 if __name__ == '__main__':
     parser = setup_argument_parser()
