@@ -34,9 +34,11 @@ async def calculate_cluster_distances(i,j, i_indices):
 
 async def main():
     # embeddings_path = 'trained_models/2021_06_27__152733-64ep/256d_embeddings__full.npy'
-    embeddings_path = 'trained_models/2021_06_27__152733/256d_embeddings__full.npy'
+    # embeddings_path = 'trained_models/2021_06_27__152733/256d_embeddings__full.npy'
+    embeddings_path = 'trained_models/2021_07_08__201227/256d_embeddings__full.npy'
 
-    df = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'),'dataset_data_frame.csv']))
+    # df = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'),'dataset_data_frame.csv']))
+    df = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'),'dataset_data_frame__seq20.csv']))
     df = df.sort_values(['ascending_index', 'keyframe_id'])
     df.reset_index(inplace=True, drop=True)
 
