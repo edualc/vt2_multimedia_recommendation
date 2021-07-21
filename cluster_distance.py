@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import pandas as pd
 from decouple import config
@@ -32,13 +33,18 @@ async def calculate_cluster_distances(i,j, i_indices):
     average_distance[i,j] = np.mean(dist)
     average_distance[j,i] = average_distance[i,j]
 
-async def main():
+async def main(args):
     # embeddings_path = 'trained_models/2021_06_27__152733-64ep/256d_embeddings__full.npy'
     # embeddings_path = 'trained_models/2021_06_27__152733/256d_embeddings__full.npy'
-    embeddings_path = 'trained_models/2021_07_08__201227/256d_embeddings__full.npy'
+
+    if not args.embedding_path:
+        embeddings_path = 'trained_models/2021_07_08__201227/256d_embeddings__full.npy'
+    else:
+        embeddings_path = args.embedding_path
 
     # df = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'),'dataset_data_frame.csv']))
-    df = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'),'dataset_data_frame__seq20.csv']))
+    
+    df = pd.read_csv(''.join([config('KEYFRAME_DATASET_GENERATOR_PATH'), args.dataset_file]))
     df = df.sort_values(['ascending_index', 'keyframe_id'])
     df.reset_index(inplace=True, drop=True)
 
@@ -71,7 +77,15 @@ async def main():
     import code; code.interact(local=dict(globals(), **locals()))
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='ClusterDistance')
+    parser.add_argument('--embedding_path', default='', type=str)
+    parser.add_argument('--dataset_file', default='dataset_data_frame__seq20.csv', type=str)
+
+    args = parser.parse_args()
+
     # srun --pty --ntasks=1 --cpus-per-task=2 --mem=32G singularity shell /cluster/home/lehl/docker/vt2_autodl.simg
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    loop.run_until_complete(main(args))
+
+# python3 cluster_distance.py --embedding_path trained_models/2021_07_08__201227/256d_embeddings__full.npy --dataset_file dataset_data_frame__seq20.csv
