@@ -10,9 +10,8 @@ The datasets are to be placed in the `datasets/` folder. They are available at t
 - MovieLens 20M (ML20M) Dataset: https://grouplens.org/datasets/movielens/20m/
 - MovieLens 20M Youtube Trailers (ML20M-YT) Dataset: https://grouplens.org/datasets/movielens/20m-youtube/
 
-### References
+A CSV containing the information necessary to clean the ML20M-YT dataset can be found in the [youtube_extracted.csv](youtube_extracted.csv) file.
 
-- Factorization Machines by Rendle et al. (http://libfm.org), found in the [github repository](https://github.com/srendle/libfm)
 
 ### Author
 
